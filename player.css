@@ -1,0 +1,22 @@
+/* Scoped UI. The canvas is an absolutely positioned layer and never resizes the player. */
+.html5-video-player .ydl-control-button { display:inline-flex!important;align-items:center;justify-content:center; vertical-align:top; width:40px; padding:0 8px; opacity:.88; }
+.html5-video-player .ydl-control-button:hover {opacity:1}
+.html5-video-player .ydl-control-button svg {display:block;width:23px;height:23px;fill:currentColor}
+.html5-video-player .ydl-control-button[aria-pressed="false"] {opacity:.48}
+.html5-video-player .ydl-panel {position:absolute;bottom:56px;right:12px;z-index:80;width:min(310px,calc(100% - 24px));max-height:min(440px,75%);overflow-y:auto;box-sizing:border-box;padding:16px;display:none;color:#f7f7f8;background:rgba(22,22,26,.97);box-shadow:0 12px 34px #0009;border:1px solid #7776;border-radius:12px;font:13px/1.45 system-ui,"Noto Sans JP",sans-serif;text-align:left;direction:ltr;pointer-events:auto;user-select:auto;}
+.html5-video-player .ydl-panel.ydl-open {display:block}
+.html5-video-player .ydl-panel *{box-sizing:border-box}
+.html5-video-player .ydl-panel-head {display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:700;margin-bottom:13px}
+.html5-video-player .ydl-panel-close {font-size:20px;line-height:1;color:#fff;background:transparent;border:0;padding:4px 7px;cursor:pointer}
+.html5-video-player .ydl-panel-field {display:flex;justify-content:space-between;align-items:center;gap:9px;margin:10px 0 5px}
+.html5-video-player .ydl-panel-field label {font-size:12px;color:#f2f2f2;flex:1;min-width:0}
+.html5-video-player .ydl-panel-field output {color:#ddd;font-variant-numeric:tabular-nums}
+.html5-video-player .ydl-panel input[type="range"] {width:100%;accent-color:#ee4255;cursor:pointer;margin:1px 0 5px}
+.html5-video-player .ydl-panel input[type="checkbox"]{accent-color:#ee4255;cursor:pointer;width:17px;height:17px}
+.html5-video-player .ydl-panel select {max-width:160px;min-width:100px;color:#fff;background:#2b2b32;border:1px solid #595964;border-radius:6px;padding:5px 7px;cursor:pointer;font:inherit}
+.html5-video-player .ydl-panel input[type="color"]{height:28px;width:43px;padding:1px;background:none;border:0;cursor:pointer}
+.html5-video-player .ydl-panel select:focus-visible,.html5-video-player .ydl-panel button:focus-visible,.html5-video-player .ydl-panel input:focus-visible{outline:2px solid #ff6977;outline-offset:2px}
+.html5-video-player .ydl-panel .ydl-disabled{opacity:.4}
+/* Fallback if YouTube's control bar markup is unavailable. */
+.html5-video-player > .ydl-floating-toggle {position:absolute;top:12px;right:12px;width:34px;height:34px;border:0;border-radius:50%;z-index:70;background:#111b;color:#fff;cursor:pointer}
+.html5-video-player > .ydl-floating-toggle svg {width:23px;height:23px}
