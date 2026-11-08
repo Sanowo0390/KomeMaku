@@ -7,7 +7,7 @@ const root=path.resolve(__dirname,'..');
 const L=require('../logic.js');
 const I18N=require('../i18n.js');
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json')));
-assert.equal(manifest.version,'1.8.4');
+assert.equal(manifest.version,'1.8.5');
 
 // Remove timestamp markers without changing the comment's playback placement.
 assert.equal(L.hideTimestamps('ここ好き 0:35、ここも 1:20\n次の行 02:00:10'), 'ここ好き 、ここも\n次の行');
@@ -22,9 +22,10 @@ const opts={viewportWidth:960,lanes:8,duration:120,speed:1,
   halfLineOverlap:true,measureText:text=>text.length*15,gap:24};
 const input=Array.from({length:6},(_,i)=>({id:'c'+i,time:3,text:'test',likes:6-i,lineCount:1}));
 const tracks=L.planTracks(input,opts).tracks;
-assert.deepEqual(tracks.slice(0,4).map(t=>t.lane),[0,2,4,6]);
-assert.ok(tracks.slice(0,4).every(t=>!t.staggered && t.time===3));
-assert.ok(tracks.slice(4).some(t=>t.staggered && t.lane%2===1 && t.time===3),
+// Full ink footprints need more than two half-lanes even for one line.
+// Use free normal rows first; staggered rows are allowed only when crowded.
+assert.ok(tracks.slice(0,2).every(t=>!t.staggered && t.lane%2===0 && t.time===3));
+assert.ok(tracks.slice(2).some(t=>t.staggered && t.lane%2===1 && t.time===3),
   'half-row fallback must occur only when all normal rows are occupied');
 // Turning fallback off must prevent odd-row placements.
 const strict=L.planTracks(input,{...opts,halfLineOverlap:false});

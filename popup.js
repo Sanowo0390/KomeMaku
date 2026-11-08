@@ -1,5 +1,5 @@
 'use strict';
-const DEFAULTS = {enabled:true,fontSize:24,lineSpacing:1,speed:1,density:5,opacity:.92,
+const DEFAULTS = {enabled:true,fontSize:24,fontFamily:'system',outlineEnabled:true,outlineStrength:1,lineSpacing:1,speed:1,density:5,opacity:.92,
   color:'#ffffff',colorMode:'single',speedMode:'fixed',language:'auto',selectionOrder:'popular',hideReplies:false,preserveLineBreaks:false,hideFromLines:0,featuredPercent:0,featuredScrollFromLines:0,
   translateComments:false,translateLanguage:'ja',autoShrink:true,halfLineOverlap:true,hideTimestamps:false,rendererMode:'auto',fpsLimit:0};
 const I18N=globalThis.YDLI18N;
@@ -12,7 +12,7 @@ function translateUi(){
   renderStatus(lastStatus);
 }
 function displayValue(key,value){
-  return key==='fontSize'?`${value}px`:key==='lineSpacing'?`${Math.round(Number(value)*100)}%`:key==='speed'?`${Number(value).toFixed(1)}×`:
+  return key==='fontSize'?`${value}px`:(key==='lineSpacing'||key==='outlineStrength')?`${Math.round(Number(value)*100)}%`:key==='speed'?`${Number(value).toFixed(1)}×`:
     key==='density'?(Number(value)===11?t('unlimited'):`${value}/10`):key==='opacity'?`${Math.round(Number(value)*100)}%`:
     key==='featuredPercent'?`${value}%`:(key==='hideFromLines'||key==='featuredScrollFromLines')?(Number(value)===0?t('unlimited'):`${value}${t('linesOrMore')}`):String(value);
 }
@@ -23,6 +23,7 @@ function updateInput(key){
   else input.value=settings[key];
   if(input.type==='range')document.getElementById(`${key}Out`).textContent=displayValue(key,settings[key]);
   if(key==='colorMode')document.getElementById('color').disabled=settings.colorMode==='random';
+  if(key==='outlineEnabled')document.getElementById('outlineStrength').disabled=!settings.outlineEnabled;
 }
 function renderStatus(status){
   const el=document.getElementById('statusText');

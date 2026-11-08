@@ -28,6 +28,27 @@
     const factor=Number.isFinite(spacing)?Math.max(.7,Math.min(2,spacing)):1;
     return Math.max(1,Math.ceil(Math.ceil(size*1.22+4)*factor));
   }
+  const FONT_STACKS=Object.freeze({
+    system:'system-ui, sans-serif',
+    gothic:'"Noto Sans JP", "Yu Gothic", "Hiragino Kaku Gothic ProN", Arial, sans-serif',
+    mincho:'"Noto Serif JP", "Yu Mincho", "Hiragino Mincho ProN", Georgia, serif',
+    rounded:'"Hiragino Maru Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif',
+    monospace:'ui-monospace, "Cascadia Mono", Consolas, "Noto Sans Mono CJK JP", monospace'
+  });
+  function fontCss(size,family='system') {
+    const stack=FONT_STACKS[family]||FONT_STACKS.system;
+    return `700 ${size}px ${stack}`;
+  }
+  function outlineWidthFor(size,enabled=true,strength=1){
+    const ratio=Number.isFinite(strength)?Math.max(.25,Math.min(2.5,strength)):1;
+    return enabled ? Math.max(2.6,size/7)*ratio : 0;
+  }
+  function textHeightFor(size,lines=1,spacing=1,enabled=true,strength=1){
+    const n=Math.max(1,Number(lines)||1);
+    // Reserve the full ink footprint, including the stroke thickness.
+    return lineStepFor(size,spacing)*(n-1)+Math.ceil(size*1.22+4)
+      +Math.ceil(outlineWidthFor(size,enabled,strength))+2;
+  }
   function lineCount(text) { return String(text || '').split('\n').length; }
   function prepareText(original, preserveLineBreaks=false, hideFromLines=0) {
     const source=cleanOriginalText(original);
@@ -250,6 +271,25 @@
       (previous.velocity * (previous.end - previous.time) - previous.width - gap) / velocity;
     return Math.min(previous.end, Math.max(entrySafe, exitSafe));
   }
+  function trackFootprint(event,lane,opts){
+    const size=event.fontsize||opts.fontsize||24;
+    const spacing=opts.lineSpacing??1;
+    const step=opts.laneStep||Math.max(1,Math.round((size+11)*(opts.halfLineOverlap?.5:1)));
+    const top=lane*step;
+    const height=textHeightFor(size,event.lineCount||lineCount(event.text),spacing,
+      opts.outlineEnabled!==false,opts.outlineStrength??1);
+    return {top,bottom:top+height,step};
+  }
+  function occupiedSlots(track,opts,laneCount){
+    const step=opts.laneStep||track.step||Math.max(1,Math.round(((opts.fontsize||24)+11)*(opts.halfLineOverlap?.5:1)));
+    const top=Number.isFinite(track.top)?track.top:track.lane*step;
+    const bottom=Number.isFinite(track.bottom)?track.bottom:top+textHeightFor(
+      track.fontsize||opts.fontsize||24,track.lineCount||lineCount(track.text),
+      opts.lineSpacing??1,opts.outlineEnabled!==false,opts.outlineStrength??1);
+    const indices=[];
+    for(let i=Math.max(0,Math.floor(top/step));i<Math.min(laneCount,Math.ceil(bottom/step));i++)indices.push(i);
+    return indices;
+  }
   function createTrack(event, opts, laneBuckets) {
     const w = Math.max(1, Number(opts.viewportWidth) || 1);
     const laneCount = Math.max(1, Math.floor(opts.lanes) || 1);
@@ -257,52 +297,61 @@
     const duration = Number(opts.duration);
     const margin = Number.isFinite(opts.finishMargin) ? opts.finishMargin : 0.6;
     const velocity = scrollingSpeed(width, w, (opts.speed || 1) * (Number(event.speedFactor) || 1), duration, margin);
-    // Timestamped comments may have started before video time zero, so the
-    // first visible frame can already show the leading glyph near the center.
+    // Timestamped comments can start before video time zero.
     const rawTarget = Number(event.time);
     const target = event.explicitTime && Number.isFinite(rawTarget)
       ? rawTarget : Math.max(0, rawTarget || 0);
-    // Normal rows (0,2,4...) never overlap each other. When all normal rows
-    // are occupied, fallback rows (1,3,5...) sit half a line lower, permitting
-    // *controlled visual overlap* with normal rows, Niconico-style. Same-parity
-    // lanes still prevent text from overtaking within their own row.
-    const lineStep=opts.halfLineOverlap?2:1;
-    const laneSpan = Math.max(1,(Math.max(1,Number(event.lineCount)||1)-1)*lineStep+1);
     const parent = event.parentId ? String(event.parentId) : null;
     const parentTrack = parent && opts.parentTracks?.get(parent);
-    let bestNormal = null, bestStaggered = null;
-    for (let lane = 0; lane + laneSpan <= laneCount; lane++) {
-      let start = target;
-      for (let k = lane; k < lane + laneSpan; k += lineStep) {
-        for (const prev of laneBuckets[k] || []) {
+    const baseSize=opts.fontsize||event.fontsize||24;
+    const step=opts.laneStep||Math.max(1,Math.round((baseSize+11)*(opts.halfLineOverlap?.5:1)));
+    const limit=(laneCount-1)*step+textHeightFor(baseSize,1,opts.lineSpacing??1,
+      opts.outlineEnabled!==false,opts.outlineStrength??1);
+    let bestNormal=null,bestStaggered=null;
+    for(let lane=0;lane<laneCount;lane++) {
+      const box=trackFootprint(event,lane,{...opts,laneStep:step});
+      if(box.bottom>limit+.001)continue;
+      let start=target;
+      const checked=new Set();
+      // A multi-line comment occupies a continuous vertical rectangle, not
+      // only the 0th/2nd/4th row markers. All covered buckets must be checked.
+      for(let k=Math.floor(box.top/step);k<Math.min(laneCount,Math.ceil(box.bottom/step));k++){
+        for(const prev of laneBuckets[k]||[]){
+          if(checked.has(prev))continue;
+          checked.add(prev);
+          const p=trackFootprint(prev,prev.lane,{...opts,laneStep:step});
+          if(box.top>=p.bottom||p.top>=box.bottom)continue;
+          // Intentionally allow a half-row overlap only between single-line
+          // comments at high density. Multiline comments NEVER use this bypass.
+          const staggerPair=opts.halfLineOverlap && lane%2===1 &&
+            (event.lineCount||lineCount(event.text))===1 &&
+            (prev.lineCount||lineCount(prev.text))===1 &&
+            prev.lane%2===0 && Math.abs(lane-prev.lane)===1;
+          if(staggerPair)continue;
           if(prev.end<=start)continue;
-          // Fixed tracks may lie in the future when a late YCS batch brings
-          // an older timestamp. They should not push a new 20s event behind
-          // a previously planned 90s event if the new one clears before 90s.
           if(opts.fixedTrackIds?.has(String(prev.id)) && prev.time>start &&
              prev.time>=start+(width+(opts.gap??28))/velocity)continue;
           start=Math.max(start,safeFollowingStart(prev,velocity,opts.gap??28));
         }
       }
-      const end = trackEnd(start,width,velocity,w);
-      if (Number.isFinite(duration) && duration > 0 && end > duration-margin+1e-6) continue;
-      const proximity = parentTrack ? Math.abs(lane-parentTrack.lane)*0.08 : 0;
-      const candidate = {lane, start, end, score:start+proximity};
-      if (!opts.halfLineOverlap || lane % 2 === 0) {
-        if (!bestNormal || candidate.score < bestNormal.score) bestNormal=candidate;
-      } else if (!bestStaggered || candidate.score < bestStaggered.score) {
-        bestStaggered=candidate;
-      }
+      const end=trackEnd(start,width,velocity,w);
+      if(Number.isFinite(duration)&&duration>0&&end>duration-margin+1e-6)continue;
+      const proximity=parentTrack?Math.abs(lane-parentTrack.lane)*.08:0;
+      const candidate={lane,start,end,score:start+proximity,box};
+      if(!opts.halfLineOverlap||lane%2===0){
+        if(!bestNormal||candidate.score<bestNormal.score)bestNormal=candidate;
+      }else if(!bestStaggered||candidate.score<bestStaggered.score)bestStaggered=candidate;
     }
-    // Use only full, non-overlapping rows when one is immediately available.
-    // Half-row placement is a fallback for congestion, not the default.
-    const chosen = bestNormal && bestNormal.start <= target + 0.001
-      ? bestNormal
-      : bestStaggered && (!bestNormal || bestStaggered.start + 0.06 < bestNormal.start)
-        ? bestStaggered : bestNormal || bestStaggered;
-    if (!chosen) return null;
+    // Normal rows have priority. Staggered fallback only when there is no
+    // normal row immediately available, and never bypasses multiline checks.
+    const chosen=bestNormal&&bestNormal.start<=target+.001?bestNormal:
+      bestStaggered&&(!bestNormal||bestStaggered.start+.06<bestNormal.start)
+        ?bestStaggered:bestNormal||bestStaggered;
+    if(!chosen)return null;
     return {...event,time:chosen.start,end:chosen.end,width,velocity,
-      lane:chosen.lane,laneSpan,staggered:!!opts.halfLineOverlap && chosen.lane%2===1};
+      lane:chosen.lane,laneSpan:Math.ceil((chosen.box.bottom-chosen.box.top)/step),
+      top:chosen.box.top,bottom:chosen.box.bottom,
+      staggered:!!opts.halfLineOverlap&&chosen.lane%2===1};
   }
 
   // Independently stack popular comments from the bottom edge up, permitting
@@ -358,22 +407,22 @@
   function planTracks(events, opts) {
     const lanes = Math.max(1, Math.floor(opts.lanes) || 1);
     const buckets = Array.from({length:lanes}, () => []);
-    for (const fixed of opts.fixedTracks || []) {
-      for (let lane=fixed.lane;lane<Math.min(lanes,fixed.lane+(fixed.laneSpan||1));lane+=(opts.halfLineOverlap?2:1)) {
-        if(lane>=0) buckets[lane].push(fixed);
-      }
-    }
+    // Use ONE common lane pitch even when individual comments shrink.
+    const laneStep=opts.laneStep||Math.max(1,Math.round(((opts.fontsize||24)+11)*(opts.halfLineOverlap?.5:1)));
+    const baseOpts={...opts,laneStep};
+    const register=track=>{
+      for(const index of occupiedSlots(track,baseOpts,lanes))buckets[index].push(track);
+    };
+    for (const fixed of opts.fixedTracks || [])register(fixed);
     const tracks = [];
     const parentTracks = new Map((opts.fixedTracks||[]).map(t=>[String(t.id),t]));
     const fixedTrackIds=new Set((opts.fixedTracks||[]).map(t=>String(t.id)));
-    const activeOpts = {...opts,parentTracks,fixedTrackIds};
+    const activeOpts = {...baseOpts,parentTracks,fixedTrackIds};
     let collisionDrops = 0;
     for (const event of events) {
-      // The caller submits events in wanted-time order. Expired tracks can
-      // never collide with any later event, so keep only recent lane entries.
       const wanted = Number(event.time) || 0;
       for (let lane = 0; lane < lanes; lane++) {
-        if (buckets[lane].length && buckets[lane][0].end <= wanted) {
+        if (buckets[lane].length) {
           buckets[lane] = buckets[lane].filter(t => t.end > wanted);
         }
       }
@@ -381,16 +430,13 @@
       if (!track) {collisionDrops++; continue; }
       tracks.push(track);
       parentTracks.set(String(track.id),track);
-      for (let lane=track.lane;lane<track.lane+track.laneSpan;lane+=(opts.halfLineOverlap?2:1)) buckets[lane].push(track);
+      register(track);
     }
     tracks.sort((a,b) => a.time - b.time || likeRank(a,b));
-    return {
-      tracks,
-      collisionDrops,
-      maxTravel:tracks.reduce((max, t) => Math.max(max, t.end - t.time), 0),
-      buckets
-    };
+    return {tracks,collisionDrops,
+      maxTravel:tracks.reduce((max,t)=>Math.max(max,t.end-t.time),0),buckets};
   }
+
   function visibleTracks(tracks, videoTime, maxTravel = 0) {
     if (!Number.isFinite(videoTime) || !tracks.length) return [];
     const start = lowerBound(tracks, videoTime - maxTravel - 0.001);
@@ -412,7 +458,7 @@
   function trackX(track, videoTime, viewportWidth) {
     return viewportWidth + 10 - track.velocity * (videoTime - track.time);
   }
-  const api = Object.freeze({lineStepFor,normalizeText, cleanOriginalText, hideTimestamps, prepareText, lineCount, selectFeatured, shouldScrollFeatured, mergeStableTracks, parseTimes, lowerBound, hash, parseLikeCount, likeRank, newestRank, selectByLikes, selectForDisplay, commentColor, speedFactor, scrollTravelSeconds, timestampHeadLeadSeconds, buildSchedule, scrollingSpeed, safeFollowingStart, createTrack, planFeatured, planTracks, visibleTracks, paceFrame, trackX});
+  const api = Object.freeze({fontCss,outlineWidthFor,textHeightFor,trackFootprint,lineStepFor,normalizeText, cleanOriginalText, hideTimestamps, prepareText, lineCount, selectFeatured, shouldScrollFeatured, mergeStableTracks, parseTimes, lowerBound, hash, parseLikeCount, likeRank, newestRank, selectByLikes, selectForDisplay, commentColor, speedFactor, scrollTravelSeconds, timestampHeadLeadSeconds, buildSchedule, scrollingSpeed, safeFollowingStart, createTrack, planFeatured, planTracks, visibleTracks, paceFrame, trackX});
   globalThis.YDLLogic = api;
   if (typeof module === "object" && module.exports) module.exports = api;
 })();

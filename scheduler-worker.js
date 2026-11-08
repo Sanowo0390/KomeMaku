@@ -9,11 +9,12 @@ let cachedOptions='', lastDuration=NaN, lastNow=0, computed=false;
 const measureCanvas=typeof OffscreenCanvas==='function'?new OffscreenCanvas(2,2):null;
 const ctx=measureCanvas?.getContext('2d',{alpha:false});
 const widthCache=new Map();
+let activeFontFamily='system';
 function measureText(value,size){
-  const key=size+'\0'+value;
+  const key=activeFontFamily+'\0'+size+'\0'+value;
   let width=widthCache.get(key);
   if(width!==undefined)return width;
-  if(ctx){ctx.font=`700 ${size}px system-ui, sans-serif`;width=0;
+  if(ctx){ctx.font=L.fontCss(size,activeFontFamily);width=0;
     for(const line of String(value).split('\n'))width=Math.max(width,ctx.measureText(line).width);
   }else width=Math.max(...String(value).split('\n').map(x=>x.length*size),0);
   widthCache.set(key,width);
@@ -29,6 +30,7 @@ function effectiveFontSize(base,lines,height,enabled,spacing=1){
 }
 function compute(message){
   const {settings,m,duration,now,force}=message;
+  activeFontFamily=settings.fontFamily||'system';
   const optionsKey=JSON.stringify([settings,m.w,m.h,m.fontsize,m.lanes,duration]);
   if(force||optionsKey!==cachedOptions||!computed){dirty=true;cachedOptions=optionsKey;}
   if(dirty){
@@ -53,7 +55,7 @@ function compute(message){
       {travelFor,timestampLeadFor,selectionOrder:settings.selectionOrder});
     generic=schedule.generic;
     const features=L.selectFeatured(schedule.events,settings.featuredPercent);
-    const opts={viewportWidth:m.w,lanes:m.lanes,duration,speed:settings.speed,
+    const opts={viewportWidth:m.w,lanes:m.lanes,laneStep:m.laneStep,fontsize:m.fontsize,lineSpacing:settings.lineSpacing,outlineEnabled:settings.outlineEnabled,outlineStrength:settings.outlineStrength,duration,speed:settings.speed,
       measureText:(text,font)=>measureText(text,font||m.fontsize),finishMargin:.6,
       gap:Math.max(24,m.fontsize),halfLineOverlap:settings.halfLineOverlap};
     // A Worker keeps its *entire* scheduled history, even when new YCS batches
@@ -76,7 +78,9 @@ function compute(message){
           const end=track.displayMode==='center' ? track.end
             : track.time+(m.w+18+width)/track.velocity;
           return {...track,text:fresh.text,fontsize:font,
-            lineCount:fresh.lineCount,width,end};
+            lineCount:fresh.lineCount,width,end,
+            bottom:track.top+L.textHeightFor(font,fresh.lineCount,settings.lineSpacing,
+              settings.outlineEnabled,settings.outlineStrength)};
         });
     }
     const previous=preserveStarted(allTracks);

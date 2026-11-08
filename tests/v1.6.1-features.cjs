@@ -18,9 +18,9 @@ assert.ok(unlimited.events.every(event=>event.time>=0 && event.time<=115));
 // Half-height lane staggering; multiline comments reserve enough half-row slots.
 const opts={viewportWidth:900,lanes:12,duration:120,speed:1,halfLineOverlap:true,measureText:(text,font)=>text.length*(font||20),gap:22};
 const a=logic.createTrack({id:'a',text:'first',time:10,lineCount:1,fontsize:20},opts,Array.from({length:12},()=>[]));
-assert.ok(a && a.laneSpan===1);
+assert.ok(a && a.bottom>a.top);
 const b=logic.createTrack({id:'b',text:'first\nsecond\nthird',time:10,lineCount:3,fontsize:12},opts,Array.from({length:12},()=>[]));
-assert.ok(b && b.laneSpan===5);
+assert.ok(b && b.bottom>b.top && b.bottom-b.top>a.bottom-a.top,'multiline occupies its full ink footprint');
 // Replies with a parentId are re-timed closer to the parent.
 const threaded=logic.buildSchedule([{id:'parent',text:'a',likes:50},{id:'reply1',text:'b',isReply:true,parentId:'parent',likes:1},{id:'reply2',text:'c',isReply:true,parentId:'parent',likes:2}],90,11,{travelFor:()=>5});
 const parent=threaded.events.find(x=>x.id==='parent');
@@ -29,7 +29,7 @@ const exported=parser.extractYcsExport({videoId:'abcdefghijk',comments:[{id:'p',
 assert.equal(exported.items.find(x=>x.id==='r').parentId,'p');
 // Translation is opt-in, isolated in the service worker, and errors preserve original texts.
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
-assert.equal(manifest.version,'1.8.4');
+assert.equal(manifest.version,'1.8.5');
 assert.ok(manifest.host_permissions.includes('https://translate.googleapis.com/*'));
 const content=fs.readFileSync(path.join(root,'content.js'),'utf8');
 for(const key of ['translateComments','translateLanguage','autoShrink','halfLineOverlap']){

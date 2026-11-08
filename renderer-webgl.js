@@ -15,6 +15,7 @@
       this.glyphs=new Map();
       this.layouts=new Map();
       this.advances=new Map();
+      this.fontCss=(size,family='system')=>{const stacks={system:'system-ui, sans-serif',gothic:'"Noto Sans JP", "Yu Gothic", "Hiragino Kaku Gothic ProN", Arial, sans-serif',mincho:'"Noto Serif JP", "Yu Mincho", "Hiragino Mincho ProN", Georgia, serif',rounded:'"Hiragino Maru Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif',monospace:'ui-monospace, "Cascadia Mono", Consolas, "Noto Sans Mono CJK JP", monospace'};return `700 ${size}px ${stacks[family]||stacks.system}`;};
       const measureCanvas=typeof OffscreenCanvas==='function'?new OffscreenCanvas(2,2):document.createElement('canvas');
       this.measureCtx=measureCanvas.getContext('2d',{alpha:true});
       this.missingGlyphs=0;
@@ -101,24 +102,25 @@
       for(const [key,g] of this.glyphs)if(g.page===oldest)this.glyphs.delete(key);
       return this._allocate(w,h);
     }
-    _glyph(text,size) {
-      const key=size+'\0'+text,old=this.glyphs.get(key);
+    _glyph(text,size,fontFamily='system',outlineEnabled=true,outlineStrength=1) {
+      const key=fontFamily+'\0'+size+'\0'+outlineEnabled+'\0'+outlineStrength+'\0'+text,old=this.glyphs.get(key);
       if(old){this.textures[old.page].stamp=++this.frame;this.frameTouched.add(old.page);return old;}
       const scale=this.pixelRatio;
       const surface=typeof OffscreenCanvas==='function'?new OffscreenCanvas(2,2):document.createElement('canvas');
       const ctx=surface.getContext('2d',{alpha:true});
       if(!ctx)return null;
-      ctx.font=`700 ${size*scale}px system-ui, sans-serif`;
+      ctx.font=this.fontCss(size*scale,fontFamily);
       const advance=Math.max(1,ctx.measureText(text).width/scale);
-      const pad=Math.max(3,Math.ceil(size*scale/7)+2);
+      const outline=outlineEnabled?Math.max(2.6*scale,size*scale/7)*Math.max(.25,Math.min(2.5,outlineStrength)):0;
+      const pad=Math.max(3,Math.ceil(outline/2+4*scale));
       const w=Math.max(1,Math.ceil(advance*scale+pad*2));
       const h=Math.max(1,Math.ceil(size*scale*1.32+pad*2));
       surface.width=w;surface.height=h;
-      ctx.font=`700 ${size*scale}px system-ui, sans-serif`;
-      ctx.lineJoin='round';ctx.lineWidth=Math.max(2.6*scale,size*scale/7);
+      ctx.font=this.fontCss(size*scale,fontFamily);
+      ctx.lineJoin='round';ctx.lineWidth=outline;
       ctx.strokeStyle='rgba(0,0,0,.86)';ctx.fillStyle='#ffffff';
       ctx.textBaseline='middle';
-      ctx.strokeText(text,pad,h/2);ctx.fillText(text,pad,h/2);
+      if(outlineEnabled)ctx.strokeText(text,pad,h/2);ctx.fillText(text,pad,h/2);
       const place=this._allocate(w,h);
       if(!place)return null;
       const gl=this.gl;
@@ -133,19 +135,19 @@
       this.glyphs.set(key,result);this.frameTouched.add(place.page);
       return result;
     }
-    _advance(char,size){
-      const key=size+'\0'+char;
+    _advance(char,size,fontFamily='system'){
+      const key=fontFamily+'\0'+size+'\0'+char;
       const cached=this.advances.get(key);
       if(cached!==undefined)return cached;
       const ctx=this.measureCtx;
-      if(ctx)ctx.font=`700 ${size*this.pixelRatio}px system-ui, sans-serif`;
+      if(ctx)ctx.font=this.fontCss(size*this.pixelRatio,fontFamily);
       const width=ctx?Math.max(1,ctx.measureText(char).width/this.pixelRatio):size;
       this.advances.set(key,width);
       if(this.advances.size>8000)this.advances.clear();
       return width;
     }
-    _layout(text,size,centered) {
-      const key=size+'\0'+(centered?'1':'0')+'\0'+text;
+    _layout(text,size,centered,fontFamily='system') {
+      const key=fontFamily+'\0'+size+'\0'+(centered?'1':'0')+'\0'+text;
       let result=this.layouts.get(key);
       if(result){this.layouts.delete(key);this.layouts.set(key,result);return result;}
       const segmenter=typeof Intl?.Segmenter==='function'?new Intl.Segmenter(undefined,{granularity:'grapheme'}):null;
@@ -156,7 +158,7 @@
         let x=0;
         const items=[];
         for(const char of chars){
-          items.push({char,x});x+=this._advance(char,size);
+          items.push({char,x});x+=this._advance(char,size,fontFamily);
         }
         return {items,width:x};
       });
@@ -169,8 +171,9 @@
     resize(width,height){this.width=Math.max(1,width);this.height=Math.max(1,height);this.gl.viewport(0,0,this.canvas.width,this.canvas.height);}
     clear(){const gl=this.gl;gl.viewport(0,0,this.canvas.width,this.canvas.height);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);}
     begin(opacity=1){this.clear();this.used=0;this.missingGlyphs=0;this.frameTouched.clear();this.groups=this.textures.map(()=>[]);this.alpha=opacity;this.frame++;}
-    drawText(text,x,y,size,color,centered=false,lineSpacing=1){
-      const layout=this._layout(text,size,centered);
+    drawText(text,x,y,size,color,centered=false,lineSpacing=1,style={}){
+      const fontFamily=style.fontFamily||'system',outlineEnabled=style.outlineEnabled!==false,outlineStrength=Number.isFinite(style.outlineStrength)?style.outlineStrength:1;
+      const layout=this._layout(text,size,centered,fontFamily);
       const baseStep=Math.ceil(size*1.22+4),step=Math.max(1,Math.ceil(baseStep*(Number.isFinite(lineSpacing)?Math.max(.7,Math.min(2,lineSpacing)):1))),drawWidth=layout.width;
       const rgb=[1,1,1];
       if(/^#[\da-f]{6}$/i.test(color)){rgb[0]=parseInt(color.slice(1,3),16)/255;rgb[1]=parseInt(color.slice(3,5),16)/255;rgb[2]=parseInt(color.slice(5,7),16)/255;}
@@ -178,7 +181,7 @@
         const line=layout.rows[row];
         const origin=x+(centered?(drawWidth-line.width)/2:0);
         for(const entry of line.items){
-          const g=this._glyph(entry.char,size);
+          const g=this._glyph(entry.char,size,fontFamily,outlineEnabled,outlineStrength);
           if(!g){this.missingGlyphs++;continue;}
           const px=origin+entry.x-g.pad/g.scale;
           const py=y+row*step+(baseStep-g.h/g.scale)/2;
