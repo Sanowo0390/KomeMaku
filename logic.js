@@ -138,12 +138,12 @@
     return (w + 18 + width) / pxPerSecond;
   }
   // How long the leading edge needs to cross from its entry position at the
-  // right to the left edge. Use exactly the same velocity as createTrack() and
-  // the same starting X coordinate as trackX(), including its 10px padding.
+  // right to the CENTER of the video. Use exactly the same velocity as
+  // createTrack() and the starting X used by trackX(), including 10px padding.
   function timestampHeadLeadSeconds(textWidth, viewportWidth, speedMultiplier = 1, duration = Infinity, finishMargin = 0.6) {
     const w = Math.max(1, Number(viewportWidth) || 1);
     const width = Math.ceil(Math.max(0, Number(textWidth) || 0));
-    return (w + 10) / scrollingSpeed(width, w, speedMultiplier, duration, finishMargin);
+    return (w / 2 + 10) / scrollingSpeed(width, w, speedMultiplier, duration, finishMargin);
   }
   function buildSchedule(records, duration, density, options = {}) {
     const eligible = records.filter(x => x.source !== "live");
@@ -188,7 +188,7 @@
         : parseTimes(item.scheduleText ?? item.text, duration);
       if (times.length) {
         // A timecode marks the instant the *leading* (leftmost) glyph reaches
-        // the LEFT edge, not the instant the comment enters from the right.
+        // the CENTER of the video, not the instant it enters from the right.
         // Only scrolling comments are advanced; fixed/featured comments still
         // appear at timestampTime (the exact requested media time).
         const rawLead = typeof options.timestampLeadFor === 'function'
@@ -197,7 +197,7 @@
         const latest = validDuration ? Math.max(0,duration - travelFor(item) - finishMargin) : times[0];
         // A negative start is intentional for early timecodes. It positions
         // the comment partially onscreen at video time zero, allowing even
-        // 0:00 and 0:02 to meet the left-edge timing without changing speed.
+        // 0:00 and 0:02 to meet the center-arrival timing without changing speed.
         events.push({...item,time:Math.min(times[0]-headLead,latest),
           timestampTime:times[0],explicitTime:true});
       } else generic.push(item);
@@ -258,7 +258,7 @@
     const margin = Number.isFinite(opts.finishMargin) ? opts.finishMargin : 0.6;
     const velocity = scrollingSpeed(width, w, (opts.speed || 1) * (Number(event.speedFactor) || 1), duration, margin);
     // Timestamped comments may have started before video time zero, so the
-    // first visible frame can already show the leading glyph at the left.
+    // first visible frame can already show the leading glyph near the center.
     const rawTarget = Number(event.time);
     const target = event.explicitTime && Number.isFinite(rawTarget)
       ? rawTarget : Math.max(0, rawTarget || 0);
@@ -324,7 +324,7 @@
       const lines=String(event.text).split('\n').length;
       const height=lineStepFor(font,opts.lineSpacing)*(lines-1)+Math.ceil(font*1.22+4)+2*Math.ceil(Math.max(3,font/7)+3);
       const width=Number(opts.measureText(event.text,font));
-      // Scrolling timecodes are advanced for left-edge arrival; featured
+      // Scrolling timecodes are advanced for center arrival; featured
       // (stationary) comments still start at the original specified time.
       const intendedTime=event.explicitTime && Number.isFinite(event.timestampTime)
         ? event.timestampTime : event.time;
