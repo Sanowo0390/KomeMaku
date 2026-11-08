@@ -35,22 +35,28 @@ jobs:
             node "$file"
             echo "::endgroup::"
           done
-      - name: Package extension for Chrome and Edge
+      - name: Stage extension for Chrome and Edge
         id: package
         shell: bash
         run: |
           set -euo pipefail
           VERSION=$(node -p 'require("./manifest.json").version')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          rm -rf dist
           mkdir -p dist/KomeMaku
           cp manifest.json background.js bridge.js content.js i18n.js settings-groups.js live-chat.js logic.js renderer-webgl.js scheduler-host.html scheduler-host.js scheduler-worker.js player.css popup.css popup.html popup.js options.css options.html options.js ycs-bridge.js ycs-parser.js dist/KomeMaku/
           cp -R icons dist/KomeMaku/icons
-          (cd dist && zip -q -r "KomeMaku-v${VERSION}.zip" KomeMaku)
-          unzip -t "dist/KomeMaku-v${VERSION}.zip"
-      - name: Upload ZIP as artifact
+          test -f dist/KomeMaku/manifest.json
+          node -e 'const m=require("./dist/KomeMaku/manifest.json"); if(m.manifest_version!==3) process.exit(1)'
+          # upload-artifact already creates the downloadable ZIP. Do not nest another ZIP.
+          if find dist -type f -iname '*.zip' | grep -q .; then
+            echo 'Unexpected ZIP inside extension artifact' >&2
+            exit 1
+          fi
+      - name: Upload extension folder as artifact
         uses: actions/upload-artifact@v4
         with:
           name: KomeMaku-v${{ steps.package.outputs.version }}
-          path: dist/KomeMaku-v*.zip
+          path: dist/
           retention-days: 90
           if-no-files-found: error
