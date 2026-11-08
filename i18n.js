@@ -3,11 +3,12 @@
   'use strict';
   const strings = {
     ja: {
+      translateComments:'コメントを自動翻訳',translateLanguage:'翻訳先の言語',translateNotice:'翻訳ON時、必要なコメントのみ外部の翻訳サービスに送信します。失敗時は原文を表示します。',autoShrink:'行数が多いコメントを自動縮小',halfLineOverlap:'混雑時だけ半行ずらす（ニコニコ風）',hideTimestamps:'コメント内のタイムスタンプを隠す',
       hideReplies:'返信コメントを非表示', preserveLineBreaks:'コメントの改行を維持',
-      hideFromLines:'この行数以上を非表示', featuredPercent:'中央に拡大表示する人気コメント',
+      hideFromLines:'この行数以上を非表示', featuredPercent:'画面下端に拡大表示する人気コメント',
       unlimited:'制限なし', linesOrMore:'行以上',
       lineHint:'0で制限なし。改行表示OFFでも元の行数で判定します。',
-      featuredHint:'いいね数が多い上位の指定割合を中央に約1.5倍で表示（0%で無効）。',
+      featuredHint:'いいね数上位の指定割合を画面下端に約1.5倍で表示。複数同時表示可能（0%で無効）。',
 
       title:'KomeMaku', subtitle:'YouTubeコメントの弾幕表示', enabled:'弾幕を表示',
       playerButton:'弾幕設定を開く', playerButtonDisabled:'弾幕設定を開く（非表示中）', playerPanel:'弾幕の設定',
@@ -31,11 +32,12 @@
       importDone:n=>`${n.toLocaleString()}件を送信しました（重複は除外）`, importFailed:e=>`読み込み失敗: ${e}`
     },
     en: {
+      translateComments:'Translate comments',translateLanguage:'Translate to',translateNotice:'When enabled, selected comments are sent to an external translation service. Original text is shown if translation fails.',autoShrink:'Auto-shrink multiline comments',halfLineOverlap:'Stagger half a line only when crowded',hideTimestamps:'Hide timestamps in comments',
       hideReplies:'Hide replies', preserveLineBreaks:'Keep comment line breaks',
-      hideFromLines:'Hide comments with this many lines or more', featuredPercent:'Featured comments in center',
+      hideFromLines:'Hide comments with this many lines or more', featuredPercent:'Featured comments at bottom',
       unlimited:'Unlimited', linesOrMore:'+ lines',
       lineHint:'0 disables the filter; original line count is used even with wrapping off.',
-      featuredHint:'Show top liked selected comments at 1.5× size in the center (0% off).',
+      featuredHint:'Show top-liked comments at 1.5× size along the bottom, stacking multiple rows (0% off).',
 
       title:'KomeMaku', subtitle:'Scrolling comments on videos', enabled:'Show danmaku',
       playerButton:'Open danmaku settings', playerButtonDisabled:'Open danmaku settings (disabled)', playerPanel:'Danmaku settings',
@@ -58,11 +60,12 @@
       importDone:n=>`Sent ${n.toLocaleString()} comments (duplicates omitted)`, importFailed:e=>`Import failed: ${e}`
     },
     'zh-CN': {
+      translateComments:'翻译评论',translateLanguage:'翻译目标语言',translateNotice:'开启后，部分评论将发送至外部翻译服务；翻译失败则显示原文。',autoShrink:'自动缩小多行评论',halfLineOverlap:'仅拥挤时错开半行',hideTimestamps:'隐藏评论中的时间戳',
       hideReplies:'隐藏回复', preserveLineBreaks:'保留评论换行',
-      hideFromLines:'隐藏达到此行数的评论', featuredPercent:'中央高赞评论比例',
+      hideFromLines:'隐藏达到此行数的评论', featuredPercent:'底部高赞评论比例',
       unlimited:'不限制', linesOrMore:'行及以上',
       lineHint:'0表示不限制，关闭换行显示仍按原始行数过滤。',
-      featuredHint:'将点赞数最高的指定比例评论放大1.5倍居中显示（0%关闭）。',
+      featuredHint:'将高赞评论放大1.5倍在底部显示，支持多条堆叠（0%关闭）。',
 
       title:'YouTube 弹幕 Lite', subtitle:'在视频上滚动显示评论', enabled:'显示弹幕',
       playerButton:'打开弹幕设置', playerButtonDisabled:'打开弹幕设置（已关闭）', playerPanel:'弹幕设置', close:'关闭',
@@ -83,11 +86,12 @@
       importDone:n=>`已发送 ${n.toLocaleString()} 条评论（已去重）`, importFailed:e=>`导入失败：${e}`
     },
     'zh-TW': {
+      translateComments:'翻譯留言',translateLanguage:'翻譯目標語言',translateNotice:'開啟後，部分留言會傳送至外部翻譯服務；失敗時顯示原文。',autoShrink:'自動縮小多行留言',halfLineOverlap:'僅擁擠時錯開半行',hideTimestamps:'隱藏留言中的時間戳',
       hideReplies:'隱藏回覆', preserveLineBreaks:'保留留言換行',
-      hideFromLines:'隱藏達此行數的留言', featuredPercent:'置中熱門留言比例',
+      hideFromLines:'隱藏達此行數的留言', featuredPercent:'底部熱門留言比例',
       unlimited:'不限', linesOrMore:'行以上',
       lineHint:'0代表不限，關閉換行顯示仍按原始行數過濾。',
-      featuredHint:'將按讚數較高的指定比例留言放大1.5倍置中顯示（0%關閉）。',
+      featuredHint:'將熱門留言放大1.5倍在底部顯示，可多行堆疊（0%關閉）。',
 
       title:'YouTube 彈幕 Lite', subtitle:'在影片上捲動顯示留言', enabled:'顯示彈幕',
       playerButton:'開啟彈幕設定', playerButtonDisabled:'開啟彈幕設定（已關閉）', playerPanel:'彈幕設定', close:'關閉',

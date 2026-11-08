@@ -31,11 +31,11 @@
       seen.set(stableId, item);
       result.push(item);
     }
-    const stack = [{node: response, depth: 0, reply: false}];
+    const stack = [{node: response, depth: 0, reply: false, parentId:null}];
     const visited = new WeakSet();
     let count = 0;
     while (stack.length && count++ < 140000) {
-      const {node, depth, reply} = stack.pop();
+      const {node, depth, reply, parentId} = stack.pop();
       if (!node || typeof node !== 'object' || depth > 26 || visited.has(node)) continue;
       visited.add(node);
       if (node.commentEntityPayload) {
@@ -44,6 +44,7 @@
         add(id, entity.properties?.content?.content || entity.properties?.content?.text || entity.properties?.contentText,
           entity.toolbar?.likeCountLiked ?? entity.toolbar?.likeCount ?? entity.properties?.likeCount,
           reply || Number(entity.properties?.replyLevel || 0) > 0 || Boolean(entity.properties?.parentCommentId));
+        const found=seen.get(String(id)); if(found && (entity.properties?.parentCommentId || parentId)) found.parentId=String(entity.properties?.parentCommentId||parentId);
       }
       if (node.commentRenderer) {
         const renderer = node.commentRenderer;
@@ -53,13 +54,14 @@
         add(renderer.commentId, value,
           renderer.likeCount ?? renderer.voteCount?.simpleText ?? renderer.likesForSort,
           reply || Number(node.replyLevel||0)>0 || node.typeComment==='R' || Boolean(node.originComment));
+        const found=seen.get(String(renderer.commentId)); if(found && (node.originComment?.commentRenderer?.commentId || parentId)) found.parentId=String(node.originComment?.commentRenderer?.commentId||parentId);
       }
       if (Array.isArray(node)) {
-        for (let i = node.length - 1; i >= 0; i--) if (node[i] && typeof node[i] === 'object') stack.push({node:node[i],depth:depth+1,reply});
+        for (let i = node.length - 1; i >= 0; i--) if (node[i] && typeof node[i] === 'object') stack.push({node:node[i],depth:depth+1,reply,parentId});
       } else {
         for (const [key, value] of Object.entries(node)) {
           if (key === 'commentEntityPayload' || key === 'commentRenderer') continue;
-          if (value && typeof value === 'object') stack.push({node:value,depth:depth+1,reply:reply || key==='commentRepliesRenderer' || key==='subThreads' || key==='ycsReplies'});
+          if (value && typeof value === 'object') stack.push({node:value,depth:depth+1,reply:reply || key==='commentRepliesRenderer' || key==='subThreads' || key==='ycsReplies',parentId:node.commentThreadRenderer?.comment?.commentRenderer?.commentId||parentId});
         }
       }
     }
@@ -87,7 +89,7 @@
     const seen = new Set();
     let videoId = typeof data.videoId === 'string' ? data.videoId : '';
     if (!videoId) videoId = videoIdFromUrl(data.urlVideo || data.url || '');
-    function add(raw, type='comment', isReply=false) {
+    function add(raw, type='comment', isReply=false, parentId=null) {
       if (!raw || typeof raw !== 'object') return;
       const text = raw.commentMessage || raw.contentText?.fullText || raw.text;
       if (typeof text !== 'string' || !text.trim()) return;
@@ -106,14 +108,14 @@
       seen.add(key);
       const renderer = raw.commentRenderer || raw;
       const likes = parseLikeCount(raw.totalLikes ?? raw.likes ?? renderer.likeCount ?? renderer.likesForSort ?? renderer.voteCount?.simpleText);
-      items.push({id:key,text,time,likes,isReply:Boolean(isReply || raw.typeComment==='R' || Number(raw.replyLevel||0)>0 || raw.originComment || raw.parentId)});
+      items.push({id:key,text,time,likes,parentId:raw.parentId||raw.originComment?.commentRenderer?.commentId||parentId||null,isReply:Boolean(isReply || raw.typeComment==='R' || Number(raw.replyLevel||0)>0 || raw.originComment || raw.parentId || parentId)});
     }
-    function visitComments(array, depth=0) {
+    function visitComments(array, depth=0, parentId=null) {
       if (!Array.isArray(array) || depth > 20) return;
       for (const c of array) {
-        add(c,'comment',depth>0);
+        add(c,'comment',depth>0,parentId);
         const nested = c?.commentReplies?.replies || c?.replies || c?.commentRenderer?.ycsReplies;
-        if (Array.isArray(nested)) visitComments(nested, depth+1);
+        if (Array.isArray(nested)) visitComments(nested, depth+1, c?.commentId||c?.id||c?.commentRenderer?.commentId||parentId);
       }
     }
     if (Array.isArray(data)) visitComments(data);

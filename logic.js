@@ -13,6 +13,17 @@
       .split('\n').map(line => line.replace(/ {2,}/g, ' ').trim()).join('\n')
       .replace(/\n{4,}/g, '\n\n\n').trim().slice(0,limit);
   }
+  // Hide recognizable playback timestamps from the displayed text, while
+  // retaining the untouched source for timestamp-based scheduling.
+  function hideTimestamps(text) {
+    if (typeof text !== 'string') return '';
+    return text.replace(timePattern, (match, prefix, token) => {
+      const parts = token.split(':').map(Number);
+      if (parts.some(p => !Number.isFinite(p)) || parts.at(-1) >= 60 ||
+          (parts.length === 3 && parts[1] >= 60)) return match;
+      return prefix;
+    }).replace(/[^\S\n]{2,}/g, ' ').split('\n').map(line => line.trim()).join('\n').trim();
+  }
   function lineCount(text) { return String(text || '').split('\n').length; }
   function prepareText(original, preserveLineBreaks=false, hideFromLines=0) {
     const source=cleanOriginalText(original);
@@ -106,7 +117,8 @@
   }
   function buildSchedule(records, duration, density, options = {}) {
     const eligible = records.filter(x => x.source !== "live");
-    const interval = Math.max(0.55, 6 / Math.max(1, density));
+    const unlimited = Number(density) >= 11;
+    const interval = unlimited ? 0 : Math.max(0.55, 6 / Math.max(1, density));
     const validDuration = Number.isFinite(duration) && duration > 0;
     const finishMargin = Number.isFinite(options.finishMargin)
       ? Math.max(0, options.finishMargin) : 0.6;
@@ -116,17 +128,18 @@
       const t = typeof options.travelFor === "function" ? options.travelFor(item) : 9;
       return Number.isFinite(t) && t > 0 ? t : 9;
     };
-    let budget = validDuration ? Math.max(1, Math.ceil(duration / interval)) : Infinity;
+    let budget = unlimited ? Infinity : (validDuration ? Math.max(1, Math.ceil(duration / interval)) : Infinity);
     let selected = selectByLikes(eligible, budget);
     let lastGenericTime = 0;
     if (validDuration && selected.length) {
       // Reserve time for the *entire* comment to travel beyond the left edge.
       // When that reduces the budget, drop the lowest-liked comments first.
       // Budget only shrinks, preventing oscillations with very long comments.
-      for (let pass = 0; pass < 8; pass++) {
+      for (let pass = 0; pass < (unlimited ? 1 : 8); pass++) {
         let maxTravel = 0;
         for (const item of selected) maxTravel = Math.max(maxTravel, travelFor(item));
         lastGenericTime = Math.max(0, duration - maxTravel - finishMargin);
+        if (unlimited) break;
         const adjustedBudget = Math.max(1, Math.floor(lastGenericTime / interval) + 1);
         if (adjustedBudget >= budget) break;
         budget = adjustedBudget;
@@ -142,7 +155,7 @@
     for (const item of selected) {
       const times = item.time !== null && item.time !== undefined
         ? (Number.isFinite(item.time) && item.time >= 0 && item.time < duration ? [item.time] : [])
-        : parseTimes(item.text, duration);
+        : parseTimes(item.scheduleText ?? item.text, duration);
       if (times.length) {
         // Timestamped comments also need enough scrolling time. If the
         // timestamp is too close to the end, start a little early instead.
@@ -156,6 +169,15 @@
     if (validDuration) {
       const gap = generic.length > 1 ? lastGenericTime / (generic.length - 1) : 0;
       for (let i = 0; i < generic.length; i++) events.push({...generic[i], time: i * gap});
+    }
+    // Group replies near their parent without moving explicit timestamps.
+    const parentTimes = new Map(events.filter(e=>!e.isReply).map(e=>[String(e.id),e.time]));
+    const replyOrder = new Map();
+    for (const e of events) if(e.isReply && e.parentId && parentTimes.has(String(e.parentId)) && e.time != null) {
+      const parentId=String(e.parentId);
+      const ordinal=replyOrder.get(parentId)||0;
+      replyOrder.set(parentId,ordinal+1);
+      e.time=Math.min(lastGenericTime||Infinity,parentTimes.get(parentId)+Math.min(12,.55+(ordinal*.85)));
     }
     events.sort((a,b) => a.time - b.time || likeRank(a,b));
     return {events, generic:validDuration ? [] : generic,
@@ -191,29 +213,81 @@
   function createTrack(event, opts, laneBuckets) {
     const w = Math.max(1, Number(opts.viewportWidth) || 1);
     const laneCount = Math.max(1, Math.floor(opts.lanes) || 1);
-    const width = Math.ceil(Math.max(0, Number(opts.measureText(event.text)) || 0));
+    const width = Math.ceil(Math.max(0, Number(opts.measureText(event.text,event.fontsize)) || 0));
     const duration = Number(opts.duration);
     const margin = Number.isFinite(opts.finishMargin) ? opts.finishMargin : 0.6;
     const velocity = scrollingSpeed(width, w, (opts.speed || 1) * (Number(event.speedFactor) || 1), duration, margin);
     const target = Math.max(0, Number(event.time) || 0);
-    const laneSpan = Math.min(laneCount,Math.max(1,Math.floor(event.lineCount)||1));
-    let bestLane = -1;
-    let bestTime = Infinity;
+    // Normal rows (0,2,4...) never overlap each other. When all normal rows
+    // are occupied, fallback rows (1,3,5...) sit half a line lower, permitting
+    // *controlled visual overlap* with normal rows, Niconico-style. Same-parity
+    // lanes still prevent text from overtaking within their own row.
+    const lineStep=opts.halfLineOverlap?2:1;
+    const laneSpan = Math.max(1,(Math.max(1,Number(event.lineCount)||1)-1)*lineStep+1);
+    const parent = event.parentId ? String(event.parentId) : null;
+    const parentTrack = parent && opts.parentTracks?.get(parent);
+    let bestNormal = null, bestStaggered = null;
     for (let lane = 0; lane + laneSpan <= laneCount; lane++) {
       let start = target;
-      for (let k=lane;k<lane+laneSpan;k++) {
-        const entries = laneBuckets[k] || [];
-        for (const prev of entries) {
+      for (let k = lane; k < lane + laneSpan; k += lineStep) {
+        for (const prev of laneBuckets[k] || []) {
           if (prev.end <= start) continue;
           start = Math.max(start, safeFollowingStart(prev, velocity, opts.gap ?? 28));
         }
       }
-      if (start < bestTime) { bestTime = start; bestLane = lane; }
+      const end = trackEnd(start,width,velocity,w);
+      if (Number.isFinite(duration) && duration > 0 && end > duration-margin+1e-6) continue;
+      const proximity = parentTrack ? Math.abs(lane-parentTrack.lane)*0.08 : 0;
+      const candidate = {lane, start, end, score:start+proximity};
+      if (!opts.halfLineOverlap || lane % 2 === 0) {
+        if (!bestNormal || candidate.score < bestNormal.score) bestNormal=candidate;
+      } else if (!bestStaggered || candidate.score < bestStaggered.score) {
+        bestStaggered=candidate;
+      }
     }
-    const end = trackEnd(bestTime, width, velocity, w);
-    if (Number.isFinite(duration) && duration > 0 && end > duration - margin + 1e-6) return null;
-    if (bestLane < 0) return null;
-    return {...event, time:bestTime, end, width, velocity, lane:bestLane, laneSpan};
+    // Use only full, non-overlapping rows when one is immediately available.
+    // Half-row placement is a fallback for congestion, not the default.
+    const chosen = bestNormal && bestNormal.start <= target + 0.001
+      ? bestNormal
+      : bestStaggered && (!bestNormal || bestStaggered.start + 0.06 < bestNormal.start)
+        ? bestStaggered : bestNormal || bestStaggered;
+    if (!chosen) return null;
+    return {...event,time:chosen.start,end:chosen.end,width,velocity,
+      lane:chosen.lane,laneSpan,staggered:!!opts.halfLineOverlap && chosen.lane%2===1};
+  }
+
+  // Independently stack popular comments from the bottom edge up, permitting
+  // multiple simultaneous comments without obscuring one another.
+  function planFeatured(events, opts) {
+    const tracks=[...(opts.fixedTracks||[])];
+    const viewportHeight=Math.max(1,Number(opts.viewportHeight)||1);
+    const viewportWidth=Math.max(1,Number(opts.viewportWidth)||1);
+    const duration=Number(opts.duration);
+    const lifetime=Number(opts.lifetime)||3.8;
+    const gap=Number.isFinite(opts.gap)?opts.gap:4;
+    let dropped=0;
+    for(const event of events) {
+      const font=Math.ceil((event.fontsize || opts.fontsize || 24)*1.5);
+      const lines=String(event.text).split('\n').length;
+      const height=Math.ceil(font*1.22+4)*lines+2*Math.ceil(Math.max(3,font/7)+3);
+      const width=Number(opts.measureText(event.text,font));
+      const start=Math.max(0,Number(event.time)||0), end=start+lifetime;
+      if(!Number.isFinite(width) || width>viewportWidth*.92 || height>viewportHeight-3 ||
+        (Number.isFinite(duration) && duration>0 && end>duration-.4)) {dropped++;continue;}
+      let bottomOffset=0;
+      const active=tracks.filter(t=>t.time<end && start<t.end)
+        .sort((a,b)=>(a.bottomOffset||0)-(b.bottomOffset||0));
+      for(const prev of active) {
+        const from=prev.bottomOffset||0;
+        if(bottomOffset+height+gap<=from) break;
+        bottomOffset=Math.max(bottomOffset,from+(prev.displayHeight||0)+gap);
+      }
+      if(bottomOffset+height+2>viewportHeight) {dropped++;continue;}
+      tracks.push({...event,displayMode:'center',time:start,end,width,fontsize:font,
+        bottomOffset,displayHeight:height});
+    }
+    tracks.sort((a,b)=>a.time-b.time||likeRank(a,b));
+    return {tracks,dropped};
   }
   // Feed all events in planned start-time order. For equal timestamps the
   // existing schedule already uses descending likes, so the lowest-liked
@@ -222,11 +296,13 @@
     const lanes = Math.max(1, Math.floor(opts.lanes) || 1);
     const buckets = Array.from({length:lanes}, () => []);
     for (const fixed of opts.fixedTracks || []) {
-      for (let lane=fixed.lane;lane<Math.min(lanes,fixed.lane+(fixed.laneSpan||1));lane++) {
+      for (let lane=fixed.lane;lane<Math.min(lanes,fixed.lane+(fixed.laneSpan||1));lane+=(opts.halfLineOverlap?2:1)) {
         if(lane>=0) buckets[lane].push(fixed);
       }
     }
     const tracks = [];
+    const parentTracks = new Map((opts.fixedTracks||[]).map(t=>[String(t.id),t]));
+    const activeOpts = {...opts,parentTracks};
     let collisionDrops = 0;
     for (const event of events) {
       // The caller submits events in wanted-time order. Expired tracks can
@@ -237,10 +313,11 @@
           buckets[lane] = buckets[lane].filter(t => t.end > wanted);
         }
       }
-      const track = createTrack(event, opts, buckets);
+      const track = createTrack(event, activeOpts, buckets);
       if (!track) {collisionDrops++; continue; }
       tracks.push(track);
-      for (let lane=track.lane;lane<track.lane+track.laneSpan;lane++) buckets[lane].push(track);
+      parentTracks.set(String(track.id),track);
+      for (let lane=track.lane;lane<track.lane+track.laneSpan;lane+=(opts.halfLineOverlap?2:1)) buckets[lane].push(track);
     }
     tracks.sort((a,b) => a.time - b.time || likeRank(a,b));
     return {
@@ -262,7 +339,7 @@
   function trackX(track, videoTime, viewportWidth) {
     return viewportWidth + 10 - track.velocity * (videoTime - track.time);
   }
-  const api = Object.freeze({normalizeText, cleanOriginalText, prepareText, lineCount, selectFeatured, mergeStableTracks, parseTimes, lowerBound, hash, parseLikeCount, likeRank, selectByLikes, commentColor, speedFactor, scrollTravelSeconds, buildSchedule, scrollingSpeed, safeFollowingStart, createTrack, planTracks, visibleTracks, trackX});
+  const api = Object.freeze({normalizeText, cleanOriginalText, hideTimestamps, prepareText, lineCount, selectFeatured, mergeStableTracks, parseTimes, lowerBound, hash, parseLikeCount, likeRank, selectByLikes, commentColor, speedFactor, scrollTravelSeconds, buildSchedule, scrollingSpeed, safeFollowingStart, createTrack, planFeatured, planTracks, visibleTracks, trackX});
   globalThis.YDLLogic = api;
   if (typeof module === "object" && module.exports) module.exports = api;
 })();

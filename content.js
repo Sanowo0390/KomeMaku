@@ -3,12 +3,13 @@
   if (window.__YDL_CONTENT_INSTALLED__) return;
   window.__YDL_CONTENT_INSTALLED__ = true;
 
-  const {normalizeText, cleanOriginalText, prepareText, parseLikeCount, buildSchedule, scrollTravelSeconds, createTrack, planTracks, mergeStableTracks, selectFeatured, visibleTracks, trackX, commentColor, speedFactor} = globalThis.YDLLogic;
+  const {normalizeText, cleanOriginalText, hideTimestamps, prepareText, parseLikeCount, buildSchedule, lowerBound, scrollTravelSeconds, createTrack, planFeatured, planTracks, mergeStableTracks, selectFeatured, visibleTracks, trackX, commentColor, speedFactor} = globalThis.YDLLogic;
   const I18N = globalThis.YDLI18N;
   const t = (key,...args) => I18N.translate(I18N.detect(settings.language),key,...args);
   const DEFAULTS = Object.freeze({enabled:true,fontSize:24,opacity:0.92,speed:1,density:5,
     color:'#ffffff',colorMode:'single',speedMode:'fixed',language:'auto',
-    hideReplies:false,preserveLineBreaks:false,hideFromLines:0,featuredPercent:0});
+    hideReplies:false,preserveLineBreaks:false,hideFromLines:0,featuredPercent:0,
+    translateComments:false,translateLanguage:'ja',autoShrink:true,halfLineOverlap:true,hideTimestamps:false});
   const settings = {...DEFAULTS};
   const records = [];
   const recordKeys = new Set();
@@ -17,6 +18,61 @@
   let renderTracks = [], centerTracks = [], maxTravel = 0, liveTracks = [];
   let lastRebuildAt = 0, invalidated = true, lastRenderedAt = 0, lastPaintTime = NaN;
   const textWidths = new Map();
+  const translationCache=new Map();
+  const translationPending=new Set();
+  const translationFailed=new Map();
+  let translationJobs=0, translationEpoch=0;
+  function translationKey(source){return settings.translateLanguage+'\0'+source;}
+  function resetTranslationSession() {
+    translationEpoch++;
+    translationPending.clear();
+    translationFailed.clear();
+    translationJobs=0;
+    invalidated=true;
+  }
+  function scheduleTranslations(now) {
+    if(!settings.translateComments || !currentVideo || translationJobs>=2 ||
+       (!renderTracks.length && !centerTracks.length)) return;
+    const epoch=translationEpoch, target=settings.translateLanguage;
+    let queued=0;
+    for(const group of [renderTracks,centerTracks]) {
+      // Include already-moving long comments, not just events that start
+      // in the next 20 seconds (important after enabling translation mid-video).
+      const startIndex=lowerBound(group,now-Math.max(25,maxTravel));
+      for(let index=startIndex;index<group.length && index<startIndex+100;index++) {
+        const item=group[index];
+        if(item.time>now+20) break;
+        if(Number.isFinite(item.end) && item.end<=now) continue;
+        const source=item.originalText||item.text;
+        const key=translationKey(source);
+        const failed=translationFailed.get(key);
+        if(source.length>700 || !source.trim() || translationCache.has(key) ||
+           translationPending.has(key) || (failed && (failed.tries>=3 || failed.retryAt>Date.now())))continue;
+        translationPending.add(key);translationJobs++;queued++;
+        try {
+          chrome.runtime.sendMessage({type:'YDL_TRANSLATE',text:source,target}, response=>{
+            if(epoch!==translationEpoch)return;
+            translationJobs=Math.max(0,translationJobs-1);translationPending.delete(key);
+            if(response?.ok && typeof response.text==='string' && response.text.trim()) {
+              translationCache.set(key,cleanOriginalText(response.text));
+              translationFailed.delete(key);
+              if(translationCache.size>4000)translationCache.delete(translationCache.keys().next().value);
+              queueRebuild();
+            }else {
+              const tries=(failed?.tries||0)+1;
+              translationFailed.set(key,{tries,retryAt:Date.now()+Math.min(30000,tries*5000)});
+            }
+            invalidated=true;
+          });
+        } catch {
+          translationJobs=Math.max(0,translationJobs-1);translationPending.delete(key);
+          translationFailed.set(key,{tries:3,retryAt:Infinity});
+        }
+        if(translationJobs>=2 || queued>=2)break;
+      }
+      if(translationJobs>=2 || queued>=2)break;
+    }
+  }
   const spriteCache = new Map();
   let spriteBytes = 0;
   const MAX_SPRITE_BYTES = 20 * 1024 * 1024;
@@ -41,6 +97,7 @@
   };
 
   function newVideo(id) {
+    resetTranslationSession();
     videoId = id;
     if (rebuildTimer) { clearTimeout(rebuildTimer); rebuildTimer = null; }
     records.length = 0;
@@ -98,6 +155,7 @@
         if (previous) {
           if (likes > previous.likes) {previous.likes = likes;changed = true;}
           if (!previous.isReply && item.isReply===true) {previous.isReply=true;changed=true;}
+          if(!previous.parentId && item.parentId) {previous.parentId=item.parentId;changed=true;}
           if (originalText.length > previous.originalText.length) {
             previous.originalText=originalText;changed=true;
           }
@@ -105,7 +163,7 @@
         continue;
       }
       recordKeys.add(key);
-      const record = {id, text, originalText, source, likes, isReply:item.isReply===true,
+      const record = {id, text, originalText, source, likes, isReply:item.isReply===true,parentId:item.parentId||null,
         time:Number.isFinite(item.time) && item.time >= 0 ? item.time : null};
       records.push(record);
       recordByKey.set(key, record);
@@ -129,6 +187,14 @@
     rebuildTimer=setTimeout(()=>{rebuildTimer=null;rebuildSchedule(force);},delay);
   }
 
+  function currentStatus() {
+    return {videoId,count:records.length+liveCount,selectedCount,droppedCount,
+      sources:Array.from(sources),status:commentStatus};
+  }
+  function notifyStatus() {
+    try { chrome.runtime.sendMessage({type:'YDL_STATUS_UPDATE',status:currentStatus()},()=>void chrome.runtime.lastError); }
+    catch { /* popup closed or extension context changed */ }
+  }
   function clearSprites() {spriteCache.clear();spriteBytes=0;}
   function textWidth(text,fontPx) {
     const key=`${fontPx}\0${text}`;
@@ -140,9 +206,9 @@
     textWidths.set(key,width);
     return width;
   }
-  function spriteFor(text,fontPx,color) {
+  function spriteFor(text,fontPx,color,centered=false) {
     if(typeof ctx?.drawImage !== 'function') return null;
-    const key=`${fontPx}\0${color}\0${text}`;
+    const key=`${fontPx}\0${color}\0${centered?"center":"left"}\0${text}`;
     let cached=spriteCache.get(key);
     if (cached) {spriteCache.delete(key);spriteCache.set(key,cached);return cached;}
     const lines=String(text).split('\n');
@@ -158,11 +224,11 @@
     const ink=surface.getContext('2d',{alpha:true});
     if(!ink)return null;
     ink.font=`700 ${fontPx}px system-ui, sans-serif`;
-    ink.textBaseline='middle';ink.textAlign='left';ink.lineJoin='round';
+    ink.textBaseline='middle';ink.textAlign=centered?'center':'left';ink.lineJoin='round';
     ink.lineWidth=Math.max(2.6,fontPx/7);ink.strokeStyle='rgba(0,0,0,.86)';ink.fillStyle=color;
     lines.forEach((line,i)=>{
       const y=pad+lineHeight*(i+.5);
-      ink.strokeText(line,pad,y);ink.fillText(line,pad,y);
+      const px=centered?width/2:pad;ink.strokeText(line,px,y);ink.fillText(line,px,y);
     });
     cached={surface,width,height,pad,bytes};
     while(spriteCache.size>=MAX_SPRITES || spriteBytes+bytes>MAX_SPRITE_BYTES) {
@@ -181,17 +247,24 @@
     const eligible=[];
     for(const record of records) {
       if(settings.hideReplies && record.isReply) continue;
-      const prepared=prepareText(record.originalText,settings.preserveLineBreaks,settings.hideFromLines);
+      const translated=settings.translateComments?translationCache.get(translationKey(record.originalText)):null;
+      const rawDisplay=translated||record.originalText;
+      const display=settings.hideTimestamps?hideTimestamps(rawDisplay):rawDisplay;
+      const prepared=prepareText(display,settings.preserveLineBreaks,0);
+      const sourceLineCount=record.originalText.split('\n').length;
+      if(settings.hideFromLines>0 && sourceLineCount>=settings.hideFromLines)continue;
       if(!prepared) continue;
-      eligible.push({...record,...prepared,speedFactor:speedFactor(record.id,settings.speedMode)});
+      const font=effectiveFontSize(m.fontsize,prepared.lineCount,m.h,settings.autoShrink);
+      eligible.push({...record,...prepared,scheduleText:record.originalText,fontsize:font,
+        speedFactor:speedFactor(record.id,settings.speedMode)});
     }
-    const travelFor=record=>scrollTravelSeconds(textWidth(record.text,m.fontsize),m.w,settings.speed*record.speedFactor);
+    const travelFor=record=>scrollTravelSeconds(textWidth(record.text,record.fontsize||m.fontsize),m.w,settings.speed*record.speedFactor);
     const schedule=buildSchedule(eligible,duration,settings.density,{travelFor});
     untimed=schedule.generic;
     const features=selectFeatured(schedule.events,settings.featuredPercent);
     const scrollingEvents=schedule.events.filter(event=>!features.has(String(event.id)));
     const opts={viewportWidth:m.w,lanes:m.lanes,duration,speed:settings.speed,
-      measureText:text=>textWidth(text,m.fontsize),finishMargin:.6,gap:Math.max(24,m.fontsize)};
+      measureText:(text,font)=>textWidth(text,font||m.fontsize),finishMargin:.6,gap:Math.max(24,m.fontsize),halfLineOverlap:settings.halfLineOverlap};
     const mediaTime=currentVideo?.currentTime || 0;
     // On incremental YCS updates, retain everything that has already begun.
     // Reassign only future slots. Settings/resize changes intentionally reflow.
@@ -200,32 +273,22 @@
       : planTracks(scrollingEvents,opts);
     renderTracks=layout.tracks;
     maxTravel=layout.maxTravel;
-    // Centered highlights are scheduled independently but cannot overlap each other.
+    // Stack popular comments from the actual bottom edge. Multiple comments
+    // may appear simultaneously in separate bottom-up rows.
     const pinnedCenter=!force && lastRebuildAt
       ? centerTracks.filter(item=>item.time<=mediaTime+1.2):[];
-    const pinnedIds=new Set([...pinnedCenter,...renderTracks.filter(item=>item.time<=mediaTime+1.2)].map(item=>String(item.id)));
-    let lastEnd=pinnedCenter.reduce((end,item)=>Math.max(end,item.end),0);
+    const pinnedIds=new Set([...pinnedCenter,...renderTracks.filter(item=>item.time<=mediaTime+1.2)]
+      .map(item=>String(item.id)));
     const featuredEvents=schedule.events.filter(event=>features.has(String(event.id)) && !pinnedIds.has(String(event.id)))
       .filter(event=>force || !lastRebuildAt || event.time>mediaTime+1.2)
       .sort((a,b)=>a.time-b.time);
-    const newCenter=[];
-    for(const event of featuredEvents) {
-      const size=Math.ceil(m.fontsize*1.5);
-      const lines=String(event.text).split('\n').length;
-      const width=textWidth(event.text,size);
-      // Don't cover the entire screen with a huge multi-line featured comment.
-      if(width>m.w*.92 || lines*size*1.3>m.h*.5) continue;
-      const time=Math.max(event.time,lastEnd+.3);
-      const end=time+3.8;
-      if(Number.isFinite(duration) && end>duration-.4) continue;
-      newCenter.push({...event,displayMode:'center',time,end,width,fontsize:size});
-      lastEnd=end;
-    }
-    centerTracks=[...pinnedCenter,...newCenter].sort((a,b)=>a.time-b.time);
+    centerTracks=planFeatured(featuredEvents,{fixedTracks:pinnedCenter,viewportHeight:m.h,
+      viewportWidth:m.w,duration,fontsize:m.fontsize,measureText:textWidth,gap:5}).tracks;
     selectedCount=renderTracks.length+centerTracks.length+untimed.length;
     droppedCount=Math.max(0,records.length-selectedCount);
     lastRebuildAt=globalThis.performance?.now?.() ?? Date.now();invalidated=true;
     if(force) {textWidths.clear();clearSprites();}
+    notifyStatus();
   }
 
   function observeDom() {
@@ -331,12 +394,22 @@
     const w = stage?.clientWidth || 0, h = stage?.clientHeight || 0;
     const fontsize = Math.max(14, Math.round(settings.fontSize * Math.max(.65, Math.min(1.3, w / 960))));
     const lineHeight = fontsize + 11;
-    const totalLanes = Math.max(1, Math.min(18, Math.floor(h * .87 / lineHeight)));
+    // Normal lanes are even indices, and odd indices are only used as
+    // a crowded-screen Niconico-style half-row fallback.
+    const laneStep = settings.halfLineOverlap ? Math.max(9,Math.round(lineHeight*.5)) : lineHeight;
+    const totalLanes = Math.max(1, Math.min(40, Math.floor(h * .77 / laneStep)));
     // Reserve a little space for real-time chat without covering comments.
     const lanes = Math.max(1, Math.floor(totalLanes * .85));
-    return {w, h, fontsize, lineHeight, lanes, totalLanes};
+    return {w, h, fontsize, lineHeight, laneStep, lanes, totalLanes};
   }
 
+  function effectiveFontSize(base,lines,height,enabled) {
+    if(!enabled || lines<=2)return base;
+    // Minimize tall comments but retain legibility (never below 12 CSS px).
+    const fits=Math.max(12,Math.floor((height*.36)/Math.max(1,lines)/1.25));
+    const densityFactor=Math.max(.64,1-Math.max(0,lines-3)*.07);
+    return Math.max(12,Math.min(base,Math.round(base*densityFactor),fits));
+  }
   function emitLive(record) {
     if (!record?.text || !ctx || !currentVideo || !stage) return;
     const m = metrics();
@@ -355,30 +428,34 @@
       viewportWidth:m.w, lanes:count, speed:settings.speed,
       duration:currentVideo.duration, finishMargin:.6,
       measureText:text => ctx.measureText(text).width,
-      gap: Math.max(24, m.fontsize)
+      gap: Math.max(24, m.fontsize),halfLineOverlap:settings.halfLineOverlap
     }, buckets);
     // For live comments, only short delays are acceptable: otherwise ignore.
     if (track && track.time <= t + 2) liveTracks.push({...track, offset});
   }
 
   function drawComment(item,t,m,isCenter=false) {
-    const size=isCenter?item.fontsize:m.fontsize;
+    const size=item.fontsize||m.fontsize;
     const color=commentColor(item.id,settings.colorMode,settings.color);
     const x=isCenter?(m.w-item.width)/2:trackX(item,t,m.w);
     const lineHeight=Math.ceil(size*1.22+4);
     const count=String(item.text).split('\n').length;
     const h=lineHeight*count;
-    const y=isCenter?(m.h-h)/2:8+(item.offset||0)*m.lineHeight+item.lane*m.lineHeight;
-    const sprite=spriteFor(item.text,size,color);
+    const pad=Math.ceil(Math.max(3,size/7)+3);
+    // Align the visible glyph baseline near the physical bottom edge rather
+    // than reserving a large (13%) unused margin below Niconico-style text.
+    const y=isCenter?Math.max(0,m.h-2-(item.bottomOffset||0)-h+(lineHeight-size)/2)
+      :8+(item.offset||0)*m.laneStep+item.lane*m.laneStep;
+    const sprite=spriteFor(item.text,size,color,isCenter);
     if(sprite) {
       ctx.drawImage(sprite.surface,Math.round(x-sprite.pad),Math.round(y-sprite.pad));
     } else {
       ctx.font=`700 ${size}px system-ui, sans-serif`;
-      ctx.textBaseline='middle';ctx.strokeStyle='rgba(0,0,0,.86)';
+      ctx.textBaseline='middle';ctx.textAlign=isCenter?'center':'left';ctx.strokeStyle='rgba(0,0,0,.86)';
       ctx.lineWidth=Math.max(2.6,size/7);ctx.fillStyle=color;
       String(item.text).split('\n').forEach((line,i)=>{
         const yy=y+lineHeight*(i+.5);
-        ctx.strokeText(line,x,yy);ctx.fillText(line,x,yy);
+        const px=isCenter?m.w/2:x;ctx.strokeText(line,px,yy);ctx.fillText(line,px,yy);
       });
     }
   }
@@ -404,13 +481,14 @@
     lastVideoTime=t;
     if (!currentVideo.paused && !currentVideo.ended && untimed.length && !Number.isFinite(currentVideo.duration)) {
       if (nextGenericAt===null) nextGenericAt=t;
-      const interval=Math.max(.55,6/settings.density);
+      const interval=settings.density>=11?.12:Math.max(.55,6/settings.density);
       if (t>=nextGenericAt) {
         emitLive(untimed[genericCursor++%untimed.length]);
         nextGenericAt=t+interval;
       }
     }
     liveTracks=liveTracks.filter(item=>t<item.end && t>=item.time-3);
+    scheduleTranslations(t);
     const visible=visibleTracks(renderTracks,t,maxTravel);
     ctx.clearRect(0,0,m.w,m.h);
     ctx.save();ctx.globalAlpha=settings.opacity;
@@ -428,11 +506,13 @@
   // settings popover. Nothing is inserted into the page's flow/layout.
   const fields = [
     ['enabled','checkbox'], ['fontSize','range',14,38,1], ['speed','range',0.5,2,0.1],
-    ['density','range',1,10,1], ['opacity','range',0.2,1,0.05],
+    ['density','range',1,11,1], ['opacity','range',0.2,1,0.05],
     ['colorMode','select',['single','random']], ['color','color'],
     ['speedMode','select',['fixed','random']], ['hideReplies','checkbox'],
     ['preserveLineBreaks','checkbox'], ['hideFromLines','range',0,10,1],
     ['featuredPercent','range',0,30,1],
+    ['translateComments','checkbox'],['translateLanguage','select',['ja','en','zh-CN','zh-TW','ko','es','fr','de']],
+    ['autoShrink','checkbox'],['halfLineOverlap','checkbox'],['hideTimestamps','checkbox'],
     ['language','select',['auto','ja','en','zh-CN','zh-TW']]
   ];
   const iconMarkup = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v2H4zm0 5h12v2H4zm0 5h16v2H4zm0 5h10v2H4z"/></svg>';
@@ -444,7 +524,7 @@
   function formatValue(key,value) {
     if (key === 'fontSize') return `${value}px`;
     if (key === 'speed') return `${Number(value).toFixed(1)}×`;
-    if (key === 'density') return `${value}/10`;
+    if (key === 'density') return Number(value)===11?t('unlimited'):`${value}/10`;
     if (key === 'opacity') return `${Math.round(Number(value)*100)}%`;
     if (key === 'featuredPercent') return `${value}%`;
     if (key === 'hideFromLines') return Number(value)===0?t('unlimited'):`${value}${t('linesOrMore')}`;
@@ -454,6 +534,7 @@
     if (key === 'colorMode') return t(value === 'single' ? 'colorSingle':'colorRandom');
     if (key === 'speedMode') return t(value === 'fixed' ? 'speedFixed':'speedRandom');
     if (key === 'language') return value === 'auto' ? t('auto') : ({ja:'日本語',en:'English','zh-CN':'简体中文','zh-TW':'繁體中文'}[value] || value);
+    if(key==='translateLanguage') return ({ja:'日本語',en:'English','zh-CN':'简体中文','zh-TW':'繁體中文',ko:'한국어',es:'Español',fr:'Français',de:'Deutsch'}[value]||value);
     return value;
   }
   function createPanel() {
@@ -589,8 +670,7 @@
       addComments(msg.comments,"ycs-import");
       reply({ok:true,count:records.length});
     } else if (msg?.type === "YDL_GET_STATUS") {
-      reply({videoId, count: records.length + liveCount, selectedCount, droppedCount,
-        sources: Array.from(sources), status: commentStatus});
+      reply(currentStatus());
     } else if (msg?.type === "YDL_CHAT_EVENT" && msg.text && videoId) {
       const isLive = !!document.querySelector("ytd-live-chat-frame, #chat iframe, ytd-live-chat-frame iframe");
       // A replay iframe can point to the same video, or be missing a videoId.
@@ -622,9 +702,10 @@
     }
     if (!settings.enabled) liveTracks = [];
     if (changes.fontSize) resize();
-    if (changes.color || changes.colorMode || changes.fontSize || changes.opacity || changes.preserveLineBreaks) clearSprites();
-    if (changes.fontSize || changes.preserveLineBreaks) textWidths.clear();
-    if ((changes.density || changes.fontSize || changes.speed || changes.speedMode || changes.hideReplies || changes.preserveLineBreaks || changes.hideFromLines || changes.featuredPercent) && records.length) queueRebuild(true);
+    if (changes.color || changes.colorMode || changes.fontSize || changes.opacity || changes.preserveLineBreaks || changes.translateComments || changes.translateLanguage || changes.autoShrink || changes.hideTimestamps) clearSprites();
+    if(changes.translateLanguage || changes.translateComments) resetTranslationSession();
+    if (changes.fontSize || changes.preserveLineBreaks || changes.hideTimestamps) textWidths.clear();
+    if ((changes.density || changes.fontSize || changes.speed || changes.speedMode || changes.hideReplies || changes.preserveLineBreaks || changes.hideFromLines || changes.featuredPercent || changes.translateComments || changes.translateLanguage || changes.autoShrink || changes.halfLineOverlap || changes.hideTimestamps) && records.length) queueRebuild(true);
     invalidated=true;
     updatePlayerControls();
     if (settings.enabled) {

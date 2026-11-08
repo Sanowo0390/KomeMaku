@@ -1,9 +1,10 @@
 'use strict';
 const DEFAULTS = {enabled:true,fontSize:24,speed:1,density:5,opacity:.92,
-  color:'#ffffff',colorMode:'single',speedMode:'fixed',language:'auto',hideReplies:false,preserveLineBreaks:false,hideFromLines:0,featuredPercent:0};
+  color:'#ffffff',colorMode:'single',speedMode:'fixed',language:'auto',hideReplies:false,preserveLineBreaks:false,hideFromLines:0,featuredPercent:0,
+  translateComments:false,translateLanguage:'ja',autoShrink:true,halfLineOverlap:true,hideTimestamps:false};
 const I18N=globalThis.YDLI18N;
 const settings={...DEFAULTS};
-let lastStatus=null;
+let lastStatus=null, activeTabId=null, statusTimer=null, statusRequest=0;
 function t(key,...args){return I18N.translate(I18N.detect(settings.language),key,...args);}
 function translateUi(){
   document.documentElement.lang=I18N.detect(settings.language);
@@ -12,7 +13,7 @@ function translateUi(){
 }
 function displayValue(key,value){
   return key==='fontSize'?`${value}px`:key==='speed'?`${Number(value).toFixed(1)}×`:
-    key==='density'?`${value}/10`:key==='opacity'?`${Math.round(Number(value)*100)}%`:
+    key==='density'?(Number(value)===11?t('unlimited'):`${value}/10`):key==='opacity'?`${Math.round(Number(value)*100)}%`:
     key==='featuredPercent'?`${value}%`:key==='hideFromLines'?(Number(value)===0?t('unlimited'):`${value}${t('linesOrMore')}`):String(value);
 }
 function updateInput(key){
@@ -31,14 +32,31 @@ function renderStatus(status){
   el.textContent=t('statusLoading');
 }
 async function refreshStatus(){
+  const request=++statusRequest;
   try {
     const tabs=await chrome.tabs.query({active:true,currentWindow:true});
     const tab=tabs[0];
-    if(!tab?.id || !tab.url?.startsWith('https://www.youtube.com/'))return;
-    lastStatus=await chrome.tabs.sendMessage(tab.id,{type:'YDL_GET_STATUS'});
-  } catch {lastStatus=null;}
-  renderStatus(lastStatus);
+    if(request!==statusRequest)return;
+    activeTabId=tab?.id || null;
+    if(!tab?.id || !tab.url?.startsWith('https://www.youtube.com/')){
+      lastStatus=null;renderStatus(lastStatus);return;
+    }
+    const result=await chrome.tabs.sendMessage(tab.id,{type:'YDL_GET_STATUS'});
+    if(request!==statusRequest)return;
+    lastStatus=result;
+  } catch {if(request===statusRequest)lastStatus=null;}
+  if(request===statusRequest)renderStatus(lastStatus);
 }
+function requestStatusRefresh(){
+  if(statusTimer)clearTimeout(statusTimer);
+  statusTimer=setTimeout(()=>{statusTimer=null;refreshStatus();},220);
+}
+chrome.runtime.onMessage.addListener((msg,sender)=>{
+  if(msg?.type!=='YDL_STATUS_UPDATE'||sender.tab?.id!==activeTabId)return;
+  ++statusRequest;
+  lastStatus=msg.status;
+  renderStatus(lastStatus);
+});
 chrome.storage.local.get(DEFAULTS,stored=>{
   for(const [key,value] of Object.entries(DEFAULTS)){
     if(typeof stored[key]===typeof value)settings[key]=stored[key];
@@ -51,6 +69,7 @@ chrome.storage.local.get(DEFAULTS,stored=>{
       chrome.storage.local.set({[key]:updated});
       updateInput(key);
       if(key==='language')translateUi();
+      requestStatusRefresh();
     });
   }
   translateUi();
