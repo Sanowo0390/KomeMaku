@@ -17,6 +17,7 @@
       title:'KomeMaku', subtitle:'YouTubeコメントの弾幕表示', enabled:'弾幕を表示',
       playerButton:'弾幕設定を開く', playerButtonDisabled:'弾幕設定を開く（非表示中）', playerPanel:'弾幕の設定',
       close:'閉じる', language:'表示言語', auto:'自動（ブラウザー）',
+      lineSpacing:'行間',lineSpacingHint:'100%で従来の間隔。改行コメント・通常レーン・人気コメントに適用します。',
       fontSize:'文字サイズ', speed:'流れる速さ', density:'表示頻度', opacity:'不透明度',
       colorMode:'コメントの色', color:'基本色', colorSingle:'単色', colorRandom:'ランダム',
       speedMode:'速度の変化', speedFixed:'一定', speedRandom:'ランダム',
@@ -49,7 +50,7 @@
 
       title:'KomeMaku', subtitle:'Scrolling comments on videos', enabled:'Show danmaku',
       playerButton:'Open danmaku settings', playerButtonDisabled:'Open danmaku settings (disabled)', playerPanel:'Danmaku settings',
-      close:'Close', language:'Language', auto:'Auto (browser)', fontSize:'Text size', speed:'Scroll speed',
+      close:'Close', language:'Language', auto:'Auto (browser)', lineSpacing:'Line spacing',lineSpacingHint:'100% is the original spacing. Applies to multiline text, scrolling lanes and featured comments.',fontSize:'Text size', speed:'Scroll speed',
       density:'Display frequency', opacity:'Opacity', colorMode:'Comment colors', color:'Base color',
       colorSingle:'Single color', colorRandom:'Random colors', speedMode:'Speed variation',
       speedFixed:'Fixed', speedRandom:'Random speeds', importTitle:'YCS Continued integration',
@@ -81,7 +82,7 @@
 
       title:'YouTube 弹幕 Lite', subtitle:'在视频上滚动显示评论', enabled:'显示弹幕',
       playerButton:'打开弹幕设置', playerButtonDisabled:'打开弹幕设置（已关闭）', playerPanel:'弹幕设置', close:'关闭',
-      language:'界面语言', auto:'自动（浏览器）', fontSize:'字体大小', speed:'滚动速度', density:'显示频率',
+      language:'界面语言', auto:'自动（浏览器）', lineSpacing:'行距',lineSpacingHint:'100%为原始行距，适用于换行、弹幕轨道和热门弹幕。',fontSize:'字体大小', speed:'滚动速度', density:'显示频率',
       opacity:'不透明度', colorMode:'弹幕颜色', color:'基础颜色', colorSingle:'单色', colorRandom:'随机颜色',
       speedMode:'速度变化', speedFixed:'固定速度', speedRandom:'随机速度', importTitle:'YCS Continued 联动',
       importDesc:'自动接收 YCS “Load all” 获取的评论和回复，也可导入之前导出的 YCS JSON。',
@@ -111,7 +112,7 @@
 
       title:'YouTube 彈幕 Lite', subtitle:'在影片上捲動顯示留言', enabled:'顯示彈幕',
       playerButton:'開啟彈幕設定', playerButtonDisabled:'開啟彈幕設定（已關閉）', playerPanel:'彈幕設定', close:'關閉',
-      language:'介面語言', auto:'自動（瀏覽器）', fontSize:'字體大小', speed:'捲動速度', density:'顯示頻率',
+      language:'介面語言', auto:'自動（瀏覽器）', lineSpacing:'行距',lineSpacingHint:'100%為原始行距，適用於換行、彈幕軌道和熱門彈幕。',fontSize:'字體大小', speed:'捲動速度', density:'顯示頻率',
       opacity:'不透明度', colorMode:'彈幕顏色', color:'基本顏色', colorSingle:'單色', colorRandom:'隨機顏色',
       speedMode:'速度變化', speedFixed:'固定速度', speedRandom:'隨機速度', importTitle:'YCS Continued 整合',
       importDesc:'自動接收 YCS「Load all」取得的留言與回覆，也可匯入先前匯出的 YCS JSON。',

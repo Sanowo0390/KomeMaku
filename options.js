@@ -1,7 +1,7 @@
 'use strict';
 // KomeMaku built-in options page. No external site, no external UI dependencies.
 const DEFAULTS=Object.freeze({
- enabled:true,fontSize:24,opacity:0.92,speed:1,density:5,selectionOrder:'popular',
+ enabled:true,fontSize:24,lineSpacing:1,opacity:0.92,speed:1,density:5,selectionOrder:'popular',
  color:'#ffffff',colorMode:'single',speedMode:'fixed',language:'auto',
  hideReplies:false,preserveLineBreaks:false,hideFromLines:0,featuredPercent:0,featuredScrollFromLines:0,
  translateComments:false,translateLanguage:'ja',autoShrink:true,halfLineOverlap:true,hideTimestamps:false,
@@ -19,7 +19,7 @@ const groups=[
  {id:'general',icon:'⚙',title:['基本設定','General','基本设置','基本設定'],subtitle:['弾幕の有効化と言語','Turn on danmaku and choose language','弹幕开关与界面语言','彈幕開關與介面語言'],keys:['enabled','language']},
  {id:'selection',icon:'▤',title:['表示・優先順位','Selection','显示与优先级','顯示與優先順序'],subtitle:['大量コメントをどれから表示するか','Choose which comments win when space runs out','决定优先显示哪些评论','決定優先顯示哪些留言'],keys:['selectionOrder','density','hideReplies','hideFromLines','preserveLineBreaks','hideTimestamps']},
  {id:'featured',icon:'★',title:['人気コメント','Featured comments','热门评论','熱門留言'],subtitle:['画面下端に拡大表示するコメント','Control highlighted comments at bottom','底部高赞弹幕','底部熱門留言'],keys:['featuredPercent','featuredScrollFromLines']},
- {id:'appearance',icon:'◉',title:['見た目・動き','Appearance','外观与动画','外觀與動態'],subtitle:['文字、流れる速度、表示の重なり','Text, colors, movement and spacing','文字、颜色、速度与重叠','文字、色彩、速度與重疊'],keys:['fontSize','speed','opacity','colorMode','color','speedMode','autoShrink','halfLineOverlap']},
+ {id:'appearance',icon:'◉',title:['見た目・動き','Appearance','外观与动画','外觀與動態'],subtitle:['文字、流れる速度、表示の重なり','Text, colors, movement and spacing','文字、颜色、速度与重叠','文字、色彩、速度與重疊'],keys:['fontSize','lineSpacing','speed','opacity','colorMode','color','speedMode','autoShrink','halfLineOverlap']},
  {id:'performance',icon:'⚡',title:['パフォーマンス','Performance','性能','效能'],subtitle:['描画エンジンとFPSの設定','Renderer and FPS settings','渲染引擎与帧率','繪製引擎與FPS'],keys:['rendererMode','fpsLimit']},
  {id:'translation',icon:'文',title:['翻訳','Translation','翻译','翻譯'],subtitle:['コメントの翻訳を有効化','Translate comments only when enabled','开启后翻译评论','啟用時翻譯留言'],keys:['translateComments','translateLanguage']}
 ];
@@ -32,8 +32,9 @@ const choices={
  speedMode:[['fixed','speedFixed'],['random','speedRandom']],
  translateLanguage:[['ja','日本語'],['en','English'],['zh-CN','简体中文'],['zh-TW','繁體中文'],['ko','한국어'],['es','Español'],['fr','Français'],['de','Deutsch']]
 };
-const ranges={fontSize:[14,38,1],speed:[.5,2,.1],density:[1,11,1],opacity:[.2,1,.05],hideFromLines:[0,10,1],featuredPercent:[0,30,1],featuredScrollFromLines:[0,10,1]};
+const ranges={fontSize:[14,38,1],lineSpacing:[.7,2,.05],speed:[.5,2,.1],density:[1,11,1],opacity:[.2,1,.05],hideFromLines:[0,10,1],featuredPercent:[0,30,1],featuredScrollFromLines:[0,10,1]};
 const descriptions={
+ lineSpacing:['100%は従来と同じ間隔です。改行したコメント・通常の行・下端の人気コメントに反映されます。','100% keeps the original spacing. Applies to multiline comments, scrolling lanes and bottom featured comments.','100%为原始行距，影响多行弹幕、普通行与底部热门弹幕。','100%為原始行距，影響多行彈幕、一般行與底部熱門彈幕。'],
  selectionOrder:['人気順か投稿日時の新しい順で表示対象を選びます。投稿日時が不明なものは「新しい順」では後回しになります。','Keep most liked or most recently published comments. Unknown dates rank last in Newest mode.','按点赞数或发布时间选择；未知日期排在最新模式末尾。','依按讚數或發佈時間選擇；未知日期排在最新模式末尾。'],
  density:['無制限は事前の件数制限のみ解除します。画面の空き不足では一部を除外します。','Unlimited removes the count cap, not physical screen limits.','无限制仅移除数量上限，屏幕仍有容量限制。','無限制只移除數量上限，畫面仍有容量限制。'],
  featuredPercent:['表示対象のうち、いいね数の多いコメントを画面下端に約1.5倍で表示します。','Enlarge top-liked comments at bottom to 1.5×.','将高赞评论放大1.5倍显示在底部。','在底部以1.5倍顯示熱門留言。'],
@@ -52,6 +53,7 @@ const L=key=>pageLabels[locale()][key];
 const $=id=>document.getElementById(id);
 function displayValue(key,value){
  if(key==='fontSize')return value+' px';
+ if(key==='lineSpacing')return Math.round(Number(value)*100)+'%';
  if(key==='speed')return Number(value).toFixed(1)+' ×';
  if(key==='opacity'||key==='featuredPercent')return Math.round(value*(key==='opacity'?100:1))+'%';
  if(key==='density')return Number(value)===11?translate('unlimited'):value+'/10';

@@ -49,6 +49,16 @@ r._allocate=oldAllocate;
 r.begin();r.drawText('XY',0,0,24,'#ffffff');r.end();
 assert.equal(r.missingGlyphs,0,'failed glyphs must be retried next frame');
 assert.equal(r.used,2);
+// Multiline row advances must match the shared lane/featured layout formula.
+const L=require('../logic.js');
+for(const factor of [.7,1,2]){
+  called.length=0;
+  r.begin();r.drawText('A\nB',0,0,24,'#ffffff',false,factor);r.end();
+  const vertices=called.find(entry=>entry[0]==='buffer')?.[1];
+  assert.ok(vertices?.length>=84,'two glyph quads must be submitted');
+  assert.equal(Math.round(vertices[43]-vertices[1]),L.lineStepFor(24,factor),
+    'WebGL2 glyph rows must match the planner line step');
+}
 r.clearCache();assert.equal(r.glyphs.size,0);r.destroy();
 global.document=priorDocument;global.OffscreenCanvas=priorCanvas;
 console.log('PASS: WebGL2 glyph orientation, atlas, multiline alignment, batched rendering, color-independent cache');

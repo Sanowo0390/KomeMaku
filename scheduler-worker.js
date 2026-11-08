@@ -20,9 +20,10 @@ function measureText(value,size){
   if(widthCache.size>16000)widthCache.clear();
   return width;
 }
-function effectiveFontSize(base,lines,height,enabled){
+function effectiveFontSize(base,lines,height,enabled,spacing=1){
   if(!enabled||lines<=2)return base;
-  const fits=Math.max(12,Math.floor(height*.36/Math.max(1,lines)/1.25));
+  const factor=Number.isFinite(spacing)?Math.max(.7,Math.min(2,spacing)):1;
+  const fits=Math.max(12,Math.floor(height*.36/(1+(lines-1)*factor)/1.25));
   const densityFactor=Math.max(.64,1-Math.max(0,lines-3)*.07);
   return Math.max(12,Math.min(base,Math.round(base*densityFactor),fits));
 }
@@ -40,7 +41,7 @@ function compute(message){
       if(settings.hideFromLines>0&&record.originalText.split('\n').length>=settings.hideFromLines)continue;
       if(!prepared)continue;
       const sourceLineCount=record.originalText.split('\n').length;
-      const font=effectiveFontSize(m.fontsize,prepared.lineCount,m.h,settings.autoShrink);
+      const font=effectiveFontSize(m.fontsize,prepared.lineCount,m.h,settings.autoShrink,settings.lineSpacing);
       eligible.push({...record,...prepared,sourceLineCount,scheduleText:record.originalText,fontsize:font,
         speedFactor:L.speedFactor(record.id,settings.speedMode)});
     }
@@ -82,7 +83,7 @@ function compute(message){
       .sort((a,b)=>a.time-b.time);
     const centers=L.planFeatured(featured,{fixedTracks:previousCenter,
       viewportHeight:m.h,viewportWidth:m.w,duration,fontsize:m.fontsize,
-      measureText,gap:5});
+      measureText,gap:5,lineSpacing:settings.lineSpacing});
     const centeredIds=new Set(centers.tracks.map(e=>String(e.id)));
     // If a featured comment did not fit at the bottom, it gets its normal
     // scrolling attempt rather than disappearing altogether.

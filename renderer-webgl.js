@@ -169,9 +169,9 @@
     resize(width,height){this.width=Math.max(1,width);this.height=Math.max(1,height);this.gl.viewport(0,0,this.canvas.width,this.canvas.height);}
     clear(){const gl=this.gl;gl.viewport(0,0,this.canvas.width,this.canvas.height);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);}
     begin(opacity=1){this.clear();this.used=0;this.missingGlyphs=0;this.frameTouched.clear();this.groups=this.textures.map(()=>[]);this.alpha=opacity;this.frame++;}
-    drawText(text,x,y,size,color,centered=false){
+    drawText(text,x,y,size,color,centered=false,lineSpacing=1){
       const layout=this._layout(text,size,centered);
-      const step=Math.ceil(size*1.22+4),drawWidth=layout.width;
+      const baseStep=Math.ceil(size*1.22+4),step=Math.max(1,Math.ceil(baseStep*(Number.isFinite(lineSpacing)?Math.max(.7,Math.min(2,lineSpacing)):1))),drawWidth=layout.width;
       const rgb=[1,1,1];
       if(/^#[\da-f]{6}$/i.test(color)){rgb[0]=parseInt(color.slice(1,3),16)/255;rgb[1]=parseInt(color.slice(3,5),16)/255;rgb[2]=parseInt(color.slice(5,7),16)/255;}
       for(let row=0;row<layout.rows.length;row++){
@@ -181,7 +181,7 @@
           const g=this._glyph(entry.char,size);
           if(!g){this.missingGlyphs++;continue;}
           const px=origin+entry.x-g.pad/g.scale;
-          const py=y+row*step+(step-g.h/g.scale)/2;
+          const py=y+row*step+(baseStep-g.h/g.scale)/2;
           const x0=px,x1=px+g.w/g.scale,y0=py,y1=py+g.h/g.scale;
           const u0=g.x/this.atlasSize,u1=(g.x+g.w)/this.atlasSize;
           const v0=g.y/this.atlasSize,v1=(g.y+g.h)/this.atlasSize;

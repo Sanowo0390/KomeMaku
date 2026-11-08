@@ -3,11 +3,11 @@
   if (window.__YDL_CONTENT_INSTALLED__) return;
   window.__YDL_CONTENT_INSTALLED__ = true;
 
-  const {normalizeText, cleanOriginalText, hideTimestamps, prepareText, parseLikeCount, buildSchedule, lowerBound, scrollTravelSeconds, createTrack, planFeatured, planTracks, mergeStableTracks, selectFeatured, shouldScrollFeatured, visibleTracks, paceFrame, trackX, commentColor, speedFactor} = globalThis.YDLLogic;
+  const {lineStepFor, normalizeText, cleanOriginalText, hideTimestamps, prepareText, parseLikeCount, buildSchedule, lowerBound, scrollTravelSeconds, createTrack, planFeatured, planTracks, mergeStableTracks, selectFeatured, shouldScrollFeatured, visibleTracks, paceFrame, trackX, commentColor, speedFactor} = globalThis.YDLLogic;
   const I18N = globalThis.YDLI18N;
   const parsePublishedAt = globalThis.YDLYcsParser?.parsePublishedAt || (()=>null);
   const t = (key,...args) => I18N.translate(I18N.detect(settings.language),key,...args);
-  const DEFAULTS = Object.freeze({enabled:true,fontSize:24,opacity:0.92,speed:1,density:5,
+  const DEFAULTS = Object.freeze({enabled:true,fontSize:24,lineSpacing:1,opacity:0.92,speed:1,density:5,
     color:'#ffffff',colorMode:'single',speedMode:'fixed',language:'auto',selectionOrder:'popular',
     hideReplies:false,preserveLineBreaks:false,hideFromLines:0,featuredPercent:0,featuredScrollFromLines:0,
     translateComments:false,translateLanguage:'ja',autoShrink:true,halfLineOverlap:true,hideTimestamps:false,rendererMode:'auto',fpsLimit:0});
@@ -315,14 +315,15 @@
   }
   function spriteFor(text,fontPx,color,centered=false) {
     if(typeof ctx?.drawImage !== 'function') return null;
-    const key=`${fontPx}\0${color}\0${centered?"center":"left"}\0${text}`;
+    const key=`${fontPx}\0${settings.lineSpacing}\0${color}\0${centered?"center":"left"}\0${text}`;
     let cached=spriteCache.get(key);
     if (cached) {spriteCache.delete(key);spriteCache.set(key,cached);return cached;}
     const lines=String(text).split('\n');
-    const lineHeight=Math.ceil(fontPx*1.22+4);
+    const baseLineHeight=Math.ceil(fontPx*1.22+4);
+    const lineHeight=lineStepFor(fontPx,settings.lineSpacing);
     const pad=Math.ceil(Math.max(3,fontPx/7)+3);
     const width=Math.ceil(textWidth(text,fontPx))+pad*2;
-    const height=lineHeight*lines.length+pad*2;
+    const height=lineHeight*(lines.length-1)+baseLineHeight+pad*2;
     const bytes=width*height*4;
     // Extremely long comments are drawn directly to prevent huge GPU buffers.
     if(width>4096 || height>1500 || bytes>MAX_SPRITE_BYTES/2) return null;
@@ -334,7 +335,7 @@
     ink.textBaseline='middle';ink.textAlign=centered?'center':'left';ink.lineJoin='round';
     ink.lineWidth=Math.max(2.6,fontPx/7);ink.strokeStyle='rgba(0,0,0,.86)';ink.fillStyle=color;
     lines.forEach((line,i)=>{
-      const y=pad+lineHeight*(i+.5);
+      const y=pad+lineHeight*i+baseLineHeight*.5;
       const px=centered?width/2:pad;ink.strokeText(line,px,y);ink.fillText(line,px,y);
     });
     cached={surface,width,height,pad,bytes};
@@ -394,7 +395,7 @@
     // Decide central placement first. Failed central candidates fall back to
     // scrolling; neither the line threshold nor a full bottom stack hides them.
     centerTracks=planFeatured(featuredEvents,{fixedTracks:pinnedCenter,viewportHeight:m.h,
-      viewportWidth:m.w,duration,fontsize:m.fontsize,measureText:textWidth,gap:5}).tracks;
+      viewportWidth:m.w,duration,fontsize:m.fontsize,measureText:textWidth,gap:5,lineSpacing:settings.lineSpacing}).tracks;
     const centeredIds=new Set(centerTracks.map(item=>String(item.id)));
     const scrollingEvents=schedule.events.filter(event=>!centeredIds.has(String(event.id)));
     // Retain started scrolling comments during incremental YCS updates.
@@ -570,7 +571,7 @@
   function metrics() {
     const w = stage?.clientWidth || 0, h = stage?.clientHeight || 0;
     const fontsize = Math.max(14, Math.round(settings.fontSize * Math.max(.65, Math.min(1.3, w / 960))));
-    const lineHeight = fontsize + 11;
+    const lineHeight = Math.ceil((fontsize + 11)*settings.lineSpacing);
     // Normal lanes are even indices, and odd indices are only used as
     // a crowded-screen Niconico-style half-row fallback.
     const laneStep = settings.halfLineOverlap ? Math.max(9,Math.round(lineHeight*.5)) : lineHeight;
@@ -583,7 +584,7 @@
   function effectiveFontSize(base,lines,height,enabled) {
     if(!enabled || lines<=2)return base;
     // Minimize tall comments but retain legibility (never below 12 CSS px).
-    const fits=Math.max(12,Math.floor((height*.36)/Math.max(1,lines)/1.25));
+    const fits=Math.max(12,Math.floor((height*.36)/(1+(lines-1)*settings.lineSpacing)/1.25));
     const densityFactor=Math.max(.64,1-Math.max(0,lines-3)*.07);
     return Math.max(12,Math.min(base,Math.round(base*densityFactor),fits));
   }
@@ -615,15 +616,16 @@
     const size=item.fontsize||m.fontsize;
     const color=commentColor(item.id,settings.colorMode,settings.color);
     const x=isCenter?(m.w-item.width)/2:trackX(item,t,m.w);
-    const lineHeight=Math.ceil(size*1.22+4);
+    const baseLineHeight=Math.ceil(size*1.22+4);
+    const lineHeight=lineStepFor(size,settings.lineSpacing);
     const count=String(item.text).split('\n').length;
-    const h=lineHeight*count;
+    const h=lineHeight*(count-1)+baseLineHeight;
     const pad=Math.ceil(Math.max(3,size/7)+3);
     // Align the visible glyph baseline near the physical bottom edge rather
     // than reserving a large (13%) unused margin below Niconico-style text.
-    const y=isCenter?Math.max(0,m.h-2-(item.bottomOffset||0)-h+(lineHeight-size)/2)
+    const y=isCenter?Math.max(0,m.h-2-(item.bottomOffset||0)-h+(baseLineHeight-size)/2)
       :8+(item.offset||0)*m.laneStep+item.lane*m.laneStep;
-    if(webgl){webgl.drawText(item.text,x,y,size,color,isCenter);return;}
+    if(webgl){webgl.drawText(item.text,x,y,size,color,isCenter,settings.lineSpacing);return;}
     const sprite=spriteFor(item.text,size,color,isCenter);
     if(sprite) {
       ctx.drawImage(sprite.surface,Math.round(x-sprite.pad),Math.round(y-sprite.pad));
@@ -632,7 +634,7 @@
       ctx.textBaseline='middle';ctx.textAlign=isCenter?'center':'left';ctx.strokeStyle='rgba(0,0,0,.86)';
       ctx.lineWidth=Math.max(2.6,size/7);ctx.fillStyle=color;
       String(item.text).split('\n').forEach((line,i)=>{
-        const yy=y+lineHeight*(i+.5);
+        const yy=y+lineHeight*i+baseLineHeight*.5;
         const px=isCenter?m.w/2:x;ctx.strokeText(line,px,yy);ctx.fillText(line,px,yy);
       });
     }
@@ -704,7 +706,7 @@
   // A native-looking control inside the YouTube player, with an absolute
   // settings popover. Nothing is inserted into the page's flow/layout.
   const fields = [
-    ['enabled','checkbox'], ['fontSize','range',14,38,1], ['speed','range',0.5,2,0.1],
+    ['enabled','checkbox'], ['fontSize','range',14,38,1], ['lineSpacing','range',0.7,2,0.05], ['speed','range',0.5,2,0.1],
     ['density','range',1,11,1], ['opacity','range',0.2,1,0.05],
     ['rendererMode','select',['auto','webgl2','canvas']],
     ['fpsLimit','select',['0','15','24','30','45','60','120']],
@@ -725,6 +727,7 @@
   }
   function formatValue(key,value) {
     if (key === 'fontSize') return `${value}px`;
+    if (key === 'lineSpacing') return `${Math.round(value*100)}%`;
     if (key === 'speed') return `${Number(value).toFixed(1)}×`;
     if (key === 'density') return Number(value)===11?t('unlimited'):`${value}/10`;
     if (key === 'opacity') return `${Math.round(Number(value)*100)}%`;
@@ -924,11 +927,11 @@
     if(changes.rendererMode){glDisabledForSession=false;switchRenderer();}
     if(changes.fpsLimit)nextPaintAt=0;
     if (changes.fontSize) resize();
-    if (changes.fontSize || changes.preserveLineBreaks || changes.translateComments || changes.translateLanguage || changes.autoShrink || changes.hideTimestamps ||
+    if (changes.fontSize || changes.lineSpacing || changes.preserveLineBreaks || changes.translateComments || changes.translateLanguage || changes.autoShrink || changes.hideTimestamps ||
         (!webgl && (changes.color || changes.colorMode))) clearSprites();
     if(changes.translateLanguage || changes.translateComments) resetTranslationSession();
     if (changes.fontSize || changes.preserveLineBreaks || changes.hideTimestamps) textWidths.clear();
-    if ((changes.selectionOrder || changes.density || changes.fontSize || changes.speed || changes.speedMode || changes.hideReplies || changes.preserveLineBreaks || changes.hideFromLines || changes.featuredPercent || changes.featuredScrollFromLines || changes.translateComments || changes.translateLanguage || changes.autoShrink || changes.halfLineOverlap || changes.hideTimestamps) && records.length) queueRebuild(true);
+    if ((changes.selectionOrder || changes.density || changes.fontSize || changes.lineSpacing || changes.speed || changes.speedMode || changes.hideReplies || changes.preserveLineBreaks || changes.hideFromLines || changes.featuredPercent || changes.featuredScrollFromLines || changes.translateComments || changes.translateLanguage || changes.autoShrink || changes.halfLineOverlap || changes.hideTimestamps) && records.length) queueRebuild(true);
     invalidated=true;
     updatePlayerControls();
     if (settings.enabled) {

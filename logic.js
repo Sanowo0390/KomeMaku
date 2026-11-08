@@ -24,6 +24,10 @@
       return prefix;
     }).replace(/[^\S\n]{2,}/g, ' ').split('\n').map(line => line.trim()).join('\n').trim();
   }
+  function lineStepFor(size,spacing=1) {
+    const factor=Number.isFinite(spacing)?Math.max(.7,Math.min(2,spacing)):1;
+    return Math.max(1,Math.ceil(Math.ceil(size*1.22+4)*factor));
+  }
   function lineCount(text) { return String(text || '').split('\n').length; }
   function prepareText(original, preserveLineBreaks=false, hideFromLines=0) {
     const source=cleanOriginalText(original);
@@ -297,7 +301,7 @@
     for(const event of events) {
       const font=Math.ceil((event.fontsize || opts.fontsize || 24)*1.5);
       const lines=String(event.text).split('\n').length;
-      const height=Math.ceil(font*1.22+4)*lines+2*Math.ceil(Math.max(3,font/7)+3);
+      const height=lineStepFor(font,opts.lineSpacing)*(lines-1)+Math.ceil(font*1.22+4)+2*Math.ceil(Math.max(3,font/7)+3);
       const width=Number(opts.measureText(event.text,font));
       const start=Math.max(0,Number(event.time)||0), end=start+lifetime;
       if(!Number.isFinite(width) || width>viewportWidth*.92 || height>viewportHeight-3 ||
@@ -383,7 +387,7 @@
   function trackX(track, videoTime, viewportWidth) {
     return viewportWidth + 10 - track.velocity * (videoTime - track.time);
   }
-  const api = Object.freeze({normalizeText, cleanOriginalText, hideTimestamps, prepareText, lineCount, selectFeatured, shouldScrollFeatured, mergeStableTracks, parseTimes, lowerBound, hash, parseLikeCount, likeRank, newestRank, selectByLikes, selectForDisplay, commentColor, speedFactor, scrollTravelSeconds, buildSchedule, scrollingSpeed, safeFollowingStart, createTrack, planFeatured, planTracks, visibleTracks, paceFrame, trackX});
+  const api = Object.freeze({lineStepFor,normalizeText, cleanOriginalText, hideTimestamps, prepareText, lineCount, selectFeatured, shouldScrollFeatured, mergeStableTracks, parseTimes, lowerBound, hash, parseLikeCount, likeRank, newestRank, selectByLikes, selectForDisplay, commentColor, speedFactor, scrollTravelSeconds, buildSchedule, scrollingSpeed, safeFollowingStart, createTrack, planFeatured, planTracks, visibleTracks, paceFrame, trackX});
   globalThis.YDLLogic = api;
   if (typeof module === "object" && module.exports) module.exports = api;
 })();
