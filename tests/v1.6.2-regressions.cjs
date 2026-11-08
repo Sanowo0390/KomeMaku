@@ -7,7 +7,7 @@ const root=path.resolve(__dirname,'..');
 const L=require('../logic.js');
 const I18N=require('../i18n.js');
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json')));
-assert.equal(manifest.version,'1.8.7');
+assert.equal(manifest.version,'1.8.8');
 
 // Remove timestamp markers without changing the comment's playback placement.
 assert.equal(L.hideTimestamps('ここ好き 0:35、ここも 1:20\n次の行 02:00:10'), 'ここ好き 、ここも\n次の行');

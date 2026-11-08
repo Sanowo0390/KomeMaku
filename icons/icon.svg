@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#073763"/><stop offset=".43" stop-color="#14205E"/><stop offset="1" stop-color="#431A74"/></linearGradient>
+  <linearGradient id="border" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#44E8FF"/><stop offset=".56" stop-color="#5984FF"/><stop offset="1" stop-color="#D15AFE"/></linearGradient>
+  <linearGradient id="progress" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#FF326F"/><stop offset="1" stop-color="#FF577F"/></linearGradient>
+  <radialGradient id="glow" cx="20%" cy="12%" r="95%"><stop stop-color="#22BFEF" stop-opacity=".20"/><stop offset="1" stop-color="#7C2EFF" stop-opacity="0"/></radialGradient>
+</defs>
+<rect x="2" y="2" width="124" height="124" rx="27" fill="url(#border)"/>
+<rect x="5" y="5" width="118" height="118" rx="24" fill="url(#bg)"/>
+<rect x="5" y="5" width="118" height="118" rx="24" fill="url(#glow)"/>
+<!-- player -->
+<rect x="18.5" y="31" width="91" height="75" rx="10" fill="#0A103E" fill-opacity=".42" stroke="#C1E7FF" stroke-width="4"/>
+<!-- flowing comments, recognizable horizontal lines -->
+<rect x="26" y="45" width="38" height="6" rx="3" fill="#6BE7FF"/>
+<rect x="34" y="57" width="31" height="6" rx="3" fill="#ECF7FF"/>
+<rect x="24" y="69" width="32" height="6" rx="3" fill="#8DABFF"/>
+<path d="M67 49 L67 82 L92 65.5 Z" fill="#FFFFFF"/>
+<rect x="27" y="92" width="74" height="4" rx="2" fill="#8F97DC" fill-opacity=".7"/>
+<rect x="27" y="92" width="33" height="4" rx="2" fill="url(#progress)"/>
+<circle cx="60" cy="94" r="4.5" fill="#F7FAFF"/>
+<!-- speech bubble -->
+<path d="M81 18.5 Q81 13 87 13 H105 Q113 13 113 22 V33 Q113 41 105 41 H96 L88 48 V41 H87 Q81 41 81 35 Z" fill="#FFFFFF" stroke="#182159" stroke-width="2"/>
+<circle cx="91" cy="28" r="2.4" fill="#35327C"/><circle cx="98" cy="28" r="2.4" fill="#35327C"/><circle cx="105" cy="28" r="2.4" fill="#35327C"/>
+</svg>
