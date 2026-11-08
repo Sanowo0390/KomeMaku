@@ -119,8 +119,10 @@
       if(!place)return null;
       const gl=this.gl;
       gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.textures[place.page].texture);
-      // Canvas top-left maps to atlas UV top after UNPACK_FLIP_Y_WEBGL.
-      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
+      // The quads use v0 at the top and v1 at the bottom. Canvas pixels are
+      // uploaded top-row-first into the texture's v0 row; flipping here would
+      // render every glyph upside down in WebGL2.
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
       gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,true);
       gl.texSubImage2D(gl.TEXTURE_2D,0,place.x,place.y,gl.RGBA,gl.UNSIGNED_BYTE,surface);
       const result={page:place.page,x:place.x,y:place.y,w,h,advance,pad,scale};

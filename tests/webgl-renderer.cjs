@@ -12,7 +12,8 @@ const gl=new Proxy({
  getParameter:()=>2048,getShaderParameter:()=>true,getProgramParameter:()=>true,
  createShader:()=>++nextId,createProgram:()=>++nextId,createBuffer:()=>++nextId,createVertexArray:()=>++nextId,createTexture:()=>++nextId,
  getUniformLocation:()=>++nextId,drawArrays:(...args)=>called.push(['draw',...args]),
- texSubImage2D:()=>called.push(['upload']),bufferData:(target,data)=>called.push(['buffer',data.length]),
+ pixelStorei:(pname,value)=>called.push(['pixelStorei',pname,value]),
+ texSubImage2D:()=>called.push(['upload']),bufferData:(target,data)=>called.push(['buffer',Array.from(data)]),
  getError:()=>0}, {get(target,key){return key in target?target[key]:(...args)=>{called.push([String(key),...args.slice(0,1)]);};}});
 const priorDocument=global.document,priorCanvas=global.OffscreenCanvas;
 class Ctx {measureText(s){return {width:Array.from(s).length*18}}strokeText(){}fillText(){}}
@@ -21,9 +22,21 @@ const canvas={width:800,height:400,getContext:kind=>kind==='webgl2'?gl:null};
 const r=new GL(canvas);r.resize(800,400);
 r.begin(.8);r.drawText('こんにちは\n世界',200,120,30,'#ffcc00',true);r.drawText('HELLO',10,10,30,'#00ff00');r.end();
 assert.ok(r.glyphs.size>3);assert.ok(r.used>8);assert.ok(called.some(x=>x[0]==='draw'));
+// Glyph canvas has a top-left origin. Vertex UV must preserve that orientation:
+// top of each quad samples source top row; left samples source left column.
+const flipCalls=called.filter(entry=>entry[0]==='pixelStorei' && entry[1]===gl.UNPACK_FLIP_Y_WEBGL);
+assert.ok(flipCalls.length>0,'glyphs must configure texture orientation on upload');
+assert.ok(flipCalls.every(entry=>entry[2]===false),'glyph upload must not vertically flip image pixels');
+const firstBatch=called.find(entry=>entry[0]==='buffer')?.[1];
+assert.ok(firstBatch?.length>=42,'at least one textured quad must be submitted');
+const stride=7;
+assert.ok(firstBatch[stride]>firstBatch[0] && firstBatch[stride+2]>firstBatch[2],
+  'glyph x and atlas u must increase together; no horizontal mirroring');
+assert.ok(firstBatch[stride*2+1]>firstBatch[1] && firstBatch[stride*2+3]>firstBatch[3],
+  'glyph y and atlas v must increase together; no vertical mirroring');
 const uploaded=called.filter(x=>x[0]==='upload').length;
 r.begin(.8);r.drawText('こんにちは\n世界',200,120,30,'#00ffff',true);r.end();
 assert.equal(called.filter(x=>x[0]==='upload').length,uploaded,'color changes must not rerasterize glyphs');
 r.clearCache();assert.equal(r.glyphs.size,0);r.destroy();
 global.document=priorDocument;global.OffscreenCanvas=priorCanvas;
-console.log('PASS: WebGL2 atlas, multi-line glyph alignment, batched rendering, color-independent cache');
+console.log('PASS: WebGL2 glyph orientation, atlas, multiline alignment, batched rendering, color-independent cache');

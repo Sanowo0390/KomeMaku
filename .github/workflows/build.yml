@@ -38,7 +38,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node -e 'const m=require("./manifest.json"); if(m.manifest_version!==3 || m.version!=="1.7.0") process.exit(1)'
+          node -e 'const m=require("./manifest.json"); if(m.manifest_version!==3 || m.version!=="1.7.1") process.exit(1)'
           for file in *.js tests/*.cjs; do node --check "$file"; done
       - name: Run unit and integration simulations
         shell: bash
