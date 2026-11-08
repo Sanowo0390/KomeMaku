@@ -1,9 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#035A91"/><stop offset=".5" stop-color="#18286F"/><stop offset="1" stop-color="#642396"/></linearGradient></defs>
-<rect x="2" y="2" width="124" height="124" rx="27" fill="url(#g)"/>
-<rect x="17" y="31" width="94" height="68" rx="12" stroke="#E5F9FF" stroke-width="9" fill="#071C49" fill-opacity=".3"/>
-<path d="M61 44 L61 86 L91 65 Z" fill="#FFFFFF"/>
-<rect x="25" y="49" width="26" height="10" rx="5" fill="#63EEFF"/>
-<rect x="29" y="69" width="22" height="10" rx="5" fill="#B4C6FF"/>
-<circle cx="99" cy="31" r="13" fill="#FFFFFF"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="KomeMaku">
+  <rect width="128" height="128" rx="27" fill="#101119"/>
+  <path d="M47 23h40c16 0 27 12 27 27v25c0 15-11 26-27 26H47c-2 0-4 0-5-1l-17 11 3-20c-6-4-10-11-10-19V50c0-16 12-27 29-27z" fill="#eb5873"/>
+  <path d="M56 44c0-3 3.2-4.7 5.7-3.2l29 18c2.5 1.6 2.5 5 0 6.6l-29 18c-2.5 1.5-5.7-.2-5.7-3.2z" fill="#f1f2f7"/>
 </svg>
