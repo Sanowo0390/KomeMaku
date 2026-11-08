@@ -37,6 +37,18 @@ assert.ok(firstBatch[stride*2+1]>firstBatch[1] && firstBatch[stride*2+3]>firstBa
 const uploaded=called.filter(x=>x[0]==='upload').length;
 r.begin(.8);r.drawText('こんにちは\n世界',200,120,30,'#00ffff',true);r.end();
 assert.equal(called.filter(x=>x[0]==='upload').length,uploaded,'color changes must not rerasterize glyphs');
+// Under atlas pressure a failed glyph must not be permanently removed from
+// the cached text layout. The host can switch to Canvas 2D in that frame.
+const oldAllocate=r._allocate.bind(r);
+r._allocate=()=>null;
+r.begin();r.drawText('XY',0,0,24,'#ffffff');r.end();
+const starvedLayout=r._layout('XY',24,false);
+assert.equal(starvedLayout.rows[0].items.length,2,'all glyphs remain in cached layout');
+assert.equal(r.missingGlyphs,2,'host must detect atlas exhaustion');
+r._allocate=oldAllocate;
+r.begin();r.drawText('XY',0,0,24,'#ffffff');r.end();
+assert.equal(r.missingGlyphs,0,'failed glyphs must be retried next frame');
+assert.equal(r.used,2);
 r.clearCache();assert.equal(r.glyphs.size,0);r.destroy();
 global.document=priorDocument;global.OffscreenCanvas=priorCanvas;
 console.log('PASS: WebGL2 glyph orientation, atlas, multiline alignment, batched rendering, color-independent cache');

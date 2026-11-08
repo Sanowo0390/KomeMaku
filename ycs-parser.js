@@ -130,34 +130,38 @@
     const seen = new Set();
     let videoId = typeof data.videoId === 'string' ? data.videoId : '';
     if (!videoId) videoId = videoIdFromUrl(data.urlVideo || data.url || '');
+    function resolveCommentId(raw){
+      let id=raw?.commentId||raw?.id||raw?.commentRenderer?.commentId||'';
+      if(!id&&raw?.commentUrl){
+        const match=String(raw.commentUrl).match(/[?&]lc=([^&#]+)/);
+        if(match){try{id=decodeURIComponent(match[1]);}catch{id=match[1];}}
+      }
+      return id;
+    }
     function add(raw, type='comment', isReply=false, parentId=null) {
       if (!raw || typeof raw !== 'object') return;
       const text = raw.commentMessage || raw.contentText?.fullText || raw.text;
       if (typeof text !== 'string' || !text.trim()) return;
-      const commentUrl = raw.commentUrl || '';
-      let id = raw.commentId || raw.id || raw.commentRenderer?.commentId || '';
-      if (!id && commentUrl) {
-        const match = String(commentUrl).match(/[?&]lc=([^&#]+)/);
-        if (match) {try{id=decodeURIComponent(match[1]);}catch{id=match[1];}}
-      }
+      const id=resolveCommentId(raw);
       const offset = Number(raw.videoOffsetMs);
       const time = type === 'chat'
         ? (Number.isFinite(offset) && offset >= 0 ? offset/1000 : parseOffset(raw.relativeTimestamp || raw.timestampText))
         : null;
       const key = String(id || `${type}:${text}:${time ?? ''}`);
-      if (seen.has(key)) return;
+      if (seen.has(key)) return key;
       seen.add(key);
       const renderer = raw.commentRenderer || raw;
       const likes = parseLikeCount(raw.totalLikes ?? raw.likes ?? renderer.likeCount ?? renderer.likesForSort ?? renderer.voteCount?.simpleText);
       const publishedAt=parsePublishedAt(raw.publishedAt??raw.publishedAtMs??raw.publishedTime??raw.commentTime??raw.commentDate??raw.publishedTimeText??renderer.publishedTimeText);
       items.push({id:key,text,time,likes,publishedAt,parentId:raw.parentId||raw.originComment?.commentRenderer?.commentId||parentId||null,isReply:Boolean(isReply || raw.typeComment==='R' || Number(raw.replyLevel||0)>0 || raw.originComment || raw.parentId || parentId)});
+      return key;
     }
     function visitComments(array, depth=0, parentId=null) {
       if (!Array.isArray(array) || depth > 20) return;
       for (const c of array) {
-        add(c,'comment',depth>0,parentId);
+        const id=add(c,'comment',depth>0,parentId)||resolveCommentId(c)||parentId;
         const nested = c?.commentReplies?.replies || c?.replies || c?.commentRenderer?.ycsReplies;
-        if (Array.isArray(nested)) visitComments(nested, depth+1, c?.commentId||c?.id||c?.commentRenderer?.commentId||parentId);
+        if (Array.isArray(nested)) visitComments(nested, depth+1,id);
       }
     }
     if (Array.isArray(data)) visitComments(data);

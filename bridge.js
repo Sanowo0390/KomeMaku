@@ -169,14 +169,15 @@
               comments.push({id: entity.properties.commentId || key, text,
                 likes: entity.toolbar?.likeCountLiked ?? entity.toolbar?.likeCount ?? 0,
                 publishedAt:globalThis.YDLYcsParser?.parsePublishedAt(entity.properties?.publishedTime||entity.properties?.publishedTimeText||entity.properties?.publishedAt),
-                isReply:Number(entity.properties?.replyLevel||0)>0 || Boolean(entity.properties?.parentCommentId)});
+                isReply:Number(entity.properties?.replyLevel||0)>0 || Boolean(entity.properties?.parentCommentId),parentId:entity.properties?.parentCommentId||null});
             }
           } else if (old) {
             const text = textFromRuns(old);
             if (text.trim()) comments.push({id: old.commentId, text,
               likes: old.likeCount ?? old.voteCount?.simpleText ?? 0,
               publishedAt:globalThis.YDLYcsParser?.parsePublishedAt(old.publishedTimeText||old.publishedAt),
-              isReply:Boolean(item.typeComment==='R' || item.originComment || Number(item.replyLevel||0)>0)});
+              isReply:Boolean(item.typeComment==='R' || item.originComment || Number(item.replyLevel||0)>0),
+              parentId:item.originComment?.commentRenderer?.commentId||null});
           }
         }
       }
@@ -191,7 +192,7 @@
         comments.push({id, text: value,
           likes: entity.toolbar?.likeCountLiked ?? entity.toolbar?.likeCount ?? 0,
           publishedAt:globalThis.YDLYcsParser?.parsePublishedAt(entity.properties?.publishedTime||entity.properties?.publishedTimeText||entity.properties?.publishedAt),
-                isReply:Number(entity.properties?.replyLevel||0)>0 || Boolean(entity.properties?.parentCommentId)});
+                isReply:Number(entity.properties?.replyLevel||0)>0 || Boolean(entity.properties?.parentCommentId),parentId:entity.properties?.parentCommentId||null});
         ids.add(id);
       }
     }
@@ -241,7 +242,8 @@
           const key = String(c.id || c.text);
           if (known.has(key)) continue;
           known.add(key);
-          batch.push({id:key, text:c.text, likes:c.likes});
+          batch.push({id:key,text:c.text,likes:c.likes,
+            publishedAt:c.publishedAt,isReply:c.isReply===true,parentId:c.parentId||null});
         }
         if (batch.length && generation === currentGen) event("batch", {id, videoId, comments: batch});
         if (!result.nextToken || result.nextToken === token) break;

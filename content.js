@@ -3,7 +3,7 @@
   if (window.__YDL_CONTENT_INSTALLED__) return;
   window.__YDL_CONTENT_INSTALLED__ = true;
 
-  const {normalizeText, cleanOriginalText, hideTimestamps, prepareText, parseLikeCount, buildSchedule, lowerBound, scrollTravelSeconds, createTrack, planFeatured, planTracks, mergeStableTracks, selectFeatured, shouldScrollFeatured, visibleTracks, trackX, commentColor, speedFactor} = globalThis.YDLLogic;
+  const {normalizeText, cleanOriginalText, hideTimestamps, prepareText, parseLikeCount, buildSchedule, lowerBound, scrollTravelSeconds, createTrack, planFeatured, planTracks, mergeStableTracks, selectFeatured, shouldScrollFeatured, visibleTracks, paceFrame, trackX, commentColor, speedFactor} = globalThis.YDLLogic;
   const I18N = globalThis.YDLI18N;
   const parsePublishedAt = globalThis.YDLYcsParser?.parsePublishedAt || (()=>null);
   const t = (key,...args) => I18N.translate(I18N.detect(settings.language),key,...args);
@@ -18,6 +18,7 @@
   let selectedCount = 0, droppedCount = 0;
   let renderTracks = [], centerTracks = [], maxTravel = 0, liveTracks = [];
   let lastRebuildAt = 0, invalidated = true, lastRenderedAt = 0, lastPaintTime = NaN;
+  let nextPaintAt=0;
   const textWidths = new Map();
   const translationCache=new Map();
   const translationPending=new Set();
@@ -77,7 +78,7 @@
     }
   }
   // WebGL2 is preferred on supported GPUs, while 2D remains the safe fallback.
-  let webgl=null, rendererName='canvas';
+  let webgl=null, rendererName='canvas',glDisabledForSession=false;
   let measureContext=null, animationCost=0, autoFps=60, autoFpsCheck=0;
   // Scheduling lives in an extension-origin iframe worker. It is optional:
   // if CSP, iframe or worker creation fails, the original 2D scheduler remains usable.
@@ -161,6 +162,7 @@
   let stageResize = null, lastVideoTime = null;
   let lastUrl = "", bridgeRequest = "", bridgeRetries = 0;
   let commentStatus = "まだコメントを取得していません";
+  let commentStatusCode = "idle";
   let sources = new Set();
   let scanTimeout = null, domObserver = null, rebuildTimer = null;
   const liveSeen = new Set();
@@ -187,6 +189,7 @@
     genericCursor = 0; lastVideoTime = null; nextGenericAt = null;
     sources = new Set();
     commentStatus = "コメントを取得しています…";
+    commentStatusCode = "loading";
     bridgeRequest = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     bridgeRetries = 0;
     liveSeen.clear();
@@ -212,12 +215,15 @@
     if (!node) return "";
     let result = "";
     const walker = document.createTreeWalker(node, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
-    while (walker.nextNode() && result.length < 220) {
+    while (walker.nextNode() && result.length < 750) {
       const part = walker.currentNode;
       if (part.nodeType === Node.TEXT_NODE) result += part.textContent || "";
-      else if (part.nodeType === Node.ELEMENT_NODE && part.tagName === "IMG") result += part.getAttribute("alt") || "";
+      else if (part.nodeType === Node.ELEMENT_NODE) {
+        if(part.tagName==='BR')result+='\n';
+        else if(part.tagName==='IMG')result+=part.getAttribute('alt')||'';
+      }
     }
-    return normalizeText(result);
+    return cleanOriginalText(result,700);
   }
 
   function addComments(items, source) {
@@ -232,6 +238,10 @@
       const key = `comment:${id}`;
       const likes = parseLikeCount(item.likes ?? item.likeCount ?? item.totalLikes);
       const publishedAt=parsePublishedAt(item.publishedAt??item.publishedTimeText??item.commentTime);
+      // Relative labels such as '3 days ago' are time-dependent. Never
+      // advance a previously recorded timestamp when the same source is
+      // scanned again. More authoritative API/YCS metadata may replace DOM.
+      const publishedAtRank=source==='dom'?1:source==='api'?2:3;
       if (recordKeys.has(key)) {
         // The initial YouTube/DOM fetch may have no like information; YCS
         // often provides the accurate score later. Keep the higher known count.
@@ -240,8 +250,8 @@
           const wasChanged=changed;
           changed=false;
           if (likes > previous.likes) {previous.likes = likes;changed = true;}
-          if (publishedAt && (!previous.publishedAt || publishedAt>previous.publishedAt)) {
-            previous.publishedAt=publishedAt;changed=true;
+          if(publishedAt && (!previous.publishedAt || publishedAtRank>(previous.publishedAtRank||0))){
+            previous.publishedAt=publishedAt;previous.publishedAtRank=publishedAtRank;changed=true;
           }
           if (!previous.isReply && item.isReply===true) {previous.isReply=true;changed=true;}
           if(!previous.parentId && item.parentId) {previous.parentId=item.parentId;changed=true;}
@@ -254,7 +264,8 @@
         continue;
       }
       recordKeys.add(key);
-      const record = {id, text, originalText, source, likes, publishedAt,isReply:item.isReply===true,parentId:item.parentId||null,
+      const record = {id, text, originalText, source, likes, publishedAt,publishedAtRank,
+        isReply:item.isReply===true,parentId:item.parentId||null,
         time:Number.isFinite(item.time) && item.time >= 0 ? item.time : null};
       records.push(record);
       recordByKey.set(key, record);
@@ -267,6 +278,7 @@
       sources.add(source);
       queueRebuild();
       commentStatus = `${records.length.toLocaleString()}件のコメントを取得`;
+      commentStatusCode = "success";
     }
   }
 
@@ -283,7 +295,7 @@
 
   function currentStatus() {
     return {videoId,count:records.length+liveCount,selectedCount,droppedCount,
-      sources:Array.from(sources),status:commentStatus,renderer:rendererName,
+      sources:Array.from(sources),status:commentStatus,statusCode:commentStatusCode,renderer:rendererName,
       scheduler:schedulerReady?'worker':'main',fpsLimit:settings.fpsLimit||'auto'};
   }
   function notifyStatus() {
@@ -362,10 +374,18 @@
       measureText:(text,font)=>textWidth(text,font||m.fontsize),finishMargin:.6,gap:Math.max(24,m.fontsize),halfLineOverlap:settings.halfLineOverlap};
     const mediaTime=currentVideo?.currentTime || 0;
     // Pin already-started comments before deciding where future ones go.
-    const pinnedCenter=!force && lastRebuildAt
-      ? centerTracks.filter(item=>item.time<=mediaTime+1.2):[];
-    const pinnedScroll=!force && lastRebuildAt
-      ? renderTracks.filter(item=>item.time<=mediaTime+1.2):[];
+    const displayById=new Map(eligible.map(item=>[String(item.id),item]));
+    const refreshPinned=(tracks,center=false)=>tracks.filter(item=>item.time<=mediaTime+1.2)
+      .map(item=>{
+        const fresh=displayById.get(String(item.id));
+        if(!fresh||fresh.text===item.text)return item;
+        const font=center?Math.ceil(fresh.fontsize*1.5):fresh.fontsize;
+        const width=Math.ceil(textWidth(fresh.text,font));
+        const end=center?item.end:item.time+(m.w+18+width)/item.velocity;
+        return {...item,text:fresh.text,fontSize:font,fontsize:font,width,end};
+      });
+    const pinnedCenter=!force && lastRebuildAt?refreshPinned(centerTracks,true):[];
+    const pinnedScroll=!force && lastRebuildAt?refreshPinned(renderTracks):[];
     const pinnedIds=new Set([...pinnedCenter,...pinnedScroll].map(item=>String(item.id)));
     const featuredEvents=schedule.events.filter(event=>features.has(String(event.id)) &&
       !shouldScrollFeatured(event,settings.featuredScrollFromLines) && !pinnedIds.has(String(event.id)))
@@ -379,7 +399,7 @@
     const scrollingEvents=schedule.events.filter(event=>!centeredIds.has(String(event.id)));
     // Retain started scrolling comments during incremental YCS updates.
     const layout=!force && lastRebuildAt && renderTracks.length && Number.isFinite(duration)
-      ? mergeStableTracks(renderTracks,scrollingEvents,opts,mediaTime,1.2)
+      ? mergeStableTracks(pinnedScroll,scrollingEvents,opts,mediaTime,1.2)
       : planTracks(scrollingEvents,opts);
     renderTracks=layout.tracks;
     maxTravel=layout.maxTravel;
@@ -467,6 +487,21 @@
       liveTracks = [];
       lastVideoTime = null;
       nextGenericAt = null;
+      invalidated = true;
+    });
+    video.addEventListener('seeked', () => {
+      if(currentVideo!==video)return;
+      const t=Number(video.currentTime)||0;
+      // Request fresh window data even when the desired seek target is inside
+      // a previously advertised window. A prior streaming batch may have
+      // changed the plan while the user was seeking.
+      if(schedulerReady&&schedulerHealthy&&records.length){
+        if(t<schedulerWindowFrom||t>schedulerWindowUntil){
+          renderTracks=[];centerTracks=[];
+        }
+        workerBuild(false);
+      }
+      invalidated=true;
     });
     resize();
     rebuildSchedule(true);
@@ -476,7 +511,7 @@
   function setupRenderer(){
     if(!canvas)return;
     rendererName='canvas';webgl=null;
-    if(settings.rendererMode!=='canvas'&&typeof globalThis.KomeMakuGL==='function'){
+    if(!glDisabledForSession&&settings.rendererMode!=='canvas'&&typeof globalThis.KomeMakuGL==='function'){
       try{
         webgl=new globalThis.KomeMakuGL(canvas,{pixelRatio:Math.min(window.devicePixelRatio||1,1.5)});
         rendererName='webgl2';
@@ -606,8 +641,9 @@
     requestAnimationFrame(tick);
     if (!stage || !canvas || !ctx || !currentVideo?.isConnected) return;
     if(document.visibilityState==='hidden') return;
-    const fps=settings.fpsLimit||autoFps;
-    if(!invalidated && timestamp-lastRenderedAt<1000/fps-1.5) return;
+    const pacing=paceFrame(timestamp,nextPaintAt,settings.fpsLimit||autoFps,invalidated);
+    if(!pacing.draw)return;
+    nextPaintAt=pacing.nextAt;
     const m=metrics();
     if (m.w<1 || m.h<1) return;
     const t=currentVideo.currentTime;
@@ -645,7 +681,17 @@
       if(item.time>t) break;
       if(t<item.end) drawComment(item,t,m,true);
     }
-    if(webgl)webgl.end();else ctx.restore();
+    if(webgl){
+      webgl.end();
+      if(webgl.missingGlyphs>0){
+        // Do not silently drop characters when the GPU atlas fills up. Use
+        // Canvas 2D for the rest of this session and permit manual retry.
+        console.warn('[KomeMaku] WebGL2 atlas full; falling back to Canvas 2D');
+        glDisabledForSession=true;
+        switchRenderer();
+        return;
+      }
+    }else ctx.restore();
     const elapsed=(globalThis.performance?.now?.()??timestamp)-paintStart;
     animationCost=animationCost?animationCost*.88+elapsed*.12:elapsed;
     if(settings.fpsLimit===0&&timestamp-autoFpsCheck>2500){
@@ -828,7 +874,13 @@
   window.addEventListener("ydl:status", (e) => {
     const data = readBridgeDetail(e);
     if (data?.id !== bridgeRequest || data?.videoId !== videoId) return;
-    if (!records.length) commentStatus = String(data.status).slice(0, 120);
+    if(!records.length){
+      commentStatus=String(data.status).slice(0,120);
+      commentStatusCode=/失敗|取得できません/.test(commentStatus)?'error'
+        :/トークンがありません/.test(commentStatus)?'noToken'
+        :/API取得:\s*0件/.test(commentStatus)?'empty':'loading';
+      notifyStatus();
+    }
   });
   chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     if (msg?.type === "YDL_IMPORT_BATCH") {
@@ -869,7 +921,8 @@
       if (key in settings && typeof obj.newValue === typeof DEFAULTS[key]) settings[key] = obj.newValue;
     }
     if (!settings.enabled) liveTracks = [];
-    if(changes.rendererMode)switchRenderer();
+    if(changes.rendererMode){glDisabledForSession=false;switchRenderer();}
+    if(changes.fpsLimit)nextPaintAt=0;
     if (changes.fontSize) resize();
     if (changes.fontSize || changes.preserveLineBreaks || changes.translateComments || changes.translateLanguage || changes.autoShrink || changes.hideTimestamps ||
         (!webgl && (changes.color || changes.colorMode))) clearSprites();

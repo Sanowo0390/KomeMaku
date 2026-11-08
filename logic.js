@@ -178,7 +178,7 @@
         // Timestamped comments also need enough scrolling time. If the
         // timestamp is too close to the end, start a little early instead.
         const latest = validDuration ? Math.max(0, duration - travelFor(item) - finishMargin) : times[0];
-        events.push({...item, time:Math.min(times[0], latest)});
+        events.push({...item, time:Math.min(times[0], latest),explicitTime:true});
       } else generic.push(item);
     }
     // One non-timestamped occurrence per video play; distribute over the
@@ -191,13 +191,14 @@
     // Group replies near their parent without moving explicit timestamps.
     const parentTimes = new Map(events.filter(e=>!e.isReply).map(e=>[String(e.id),e.time]));
     const replyOrder = new Map();
-    for (const e of events) if(e.isReply && e.parentId && parentTimes.has(String(e.parentId)) && e.time != null) {
+    for (const e of events) if(e.isReply && !e.explicitTime && e.parentId && parentTimes.has(String(e.parentId)) && e.time != null) {
       const parentId=String(e.parentId);
       const ordinal=replyOrder.get(parentId)||0;
       replyOrder.set(parentId,ordinal+1);
       e.time=Math.min(lastGenericTime||Infinity,parentTimes.get(parentId)+Math.min(12,.55+(ordinal*.85)));
     }
-    events.sort((a,b) => a.time - b.time || likeRank(a,b));
+    const collisionRank=options.selectionOrder==='newest'?newestRank:likeRank;
+    events.sort((a,b) => a.time - b.time || collisionRank(a,b));
     return {events, generic:validDuration ? [] : generic,
       selectedCount:selected.length, droppedCount:eligible.length-selected.length,
       budget, lastGenericTime};
@@ -249,8 +250,13 @@
       let start = target;
       for (let k = lane; k < lane + laneSpan; k += lineStep) {
         for (const prev of laneBuckets[k] || []) {
-          if (prev.end <= start) continue;
-          start = Math.max(start, safeFollowingStart(prev, velocity, opts.gap ?? 28));
+          if(prev.end<=start)continue;
+          // Fixed tracks may lie in the future when a late YCS batch brings
+          // an older timestamp. They should not push a new 20s event behind
+          // a previously planned 90s event if the new one clears before 90s.
+          if(opts.fixedTrackIds?.has(String(prev.id)) && prev.time>start &&
+             prev.time>=start+(width+(opts.gap??28))/velocity)continue;
+          start=Math.max(start,safeFollowingStart(prev,velocity,opts.gap??28));
         }
       }
       const end = trackEnd(start,width,velocity,w);
@@ -330,7 +336,8 @@
     }
     const tracks = [];
     const parentTracks = new Map((opts.fixedTracks||[]).map(t=>[String(t.id),t]));
-    const activeOpts = {...opts,parentTracks};
+    const fixedTrackIds=new Set((opts.fixedTracks||[]).map(t=>String(t.id)));
+    const activeOpts = {...opts,parentTracks,fixedTrackIds};
     let collisionDrops = 0;
     for (const event of events) {
       // The caller submits events in wanted-time order. Expired tracks can
@@ -364,10 +371,19 @@
     }
     return result;
   }
+  // Fractional frame deadlines prevent 24/45 FPS from collapsing to 20/30
+  // on 60Hz displays. Explicit invalidation may redraw before the deadline.
+  function paceFrame(timestamp,nextAt,fps,forced=false){
+    const step=1000/Math.max(1,Number(fps)||30);
+    if(!forced&&nextAt>0&&timestamp+0.5<nextAt)return {draw:false,nextAt};
+    if(!Number.isFinite(nextAt)||nextAt<=0||timestamp-nextAt>step*5)nextAt=timestamp+step;
+    else if(timestamp+0.5>=nextAt)nextAt+=step*(Math.floor(Math.max(0,timestamp-nextAt)/step)+1);
+    return {draw:true,nextAt};
+  }
   function trackX(track, videoTime, viewportWidth) {
     return viewportWidth + 10 - track.velocity * (videoTime - track.time);
   }
-  const api = Object.freeze({normalizeText, cleanOriginalText, hideTimestamps, prepareText, lineCount, selectFeatured, shouldScrollFeatured, mergeStableTracks, parseTimes, lowerBound, hash, parseLikeCount, likeRank, newestRank, selectByLikes, selectForDisplay, commentColor, speedFactor, scrollTravelSeconds, buildSchedule, scrollingSpeed, safeFollowingStart, createTrack, planFeatured, planTracks, visibleTracks, trackX});
+  const api = Object.freeze({normalizeText, cleanOriginalText, hideTimestamps, prepareText, lineCount, selectFeatured, shouldScrollFeatured, mergeStableTracks, parseTimes, lowerBound, hash, parseLikeCount, likeRank, newestRank, selectByLikes, selectForDisplay, commentColor, speedFactor, scrollTravelSeconds, buildSchedule, scrollingSpeed, safeFollowingStart, createTrack, planFeatured, planTracks, visibleTracks, paceFrame, trackX});
   globalThis.YDLLogic = api;
   if (typeof module === "object" && module.exports) module.exports = api;
 })();

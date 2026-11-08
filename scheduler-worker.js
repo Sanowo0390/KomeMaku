@@ -51,31 +51,66 @@ function compute(message){
     const opts={viewportWidth:m.w,lanes:m.lanes,duration,speed:settings.speed,
       measureText:(text,font)=>measureText(text,font||m.fontsize),finishMargin:.6,
       gap:Math.max(24,m.fontsize),halfLineOverlap:settings.halfLineOverlap};
-    const previous=force?[]:allTracks.filter(t=>t.time<=now+1.2&&t.end>=now-5);
-    const previousCenter=force?[]:allCenter.filter(t=>t.time<=now+1.2&&t.end>=now-5);
+    // A Worker keeps its *entire* scheduled history, even when new YCS batches
+    // arrive. The old implementation pinned only tracks visible around `now`,
+    // then silently dropped everything earlier than that window.
+    const cutoff=Math.max(0,Number(now)||0)+1.2;
+    const eligibleById=new Map(eligible.map(e=>[String(e.id),e]));
+    function preserveStarted(source){
+      if(force||!computed)return [];
+      return source.filter(track=>track.time<=cutoff && eligibleById.has(String(track.id)))
+        .map(track=>{
+          const fresh=eligibleById.get(String(track.id));
+          if(fresh.text===track.text&&fresh.fontsize===track.fontsize)return track;
+          // Refresh translation/text on a track without moving its start time,
+          // lane or velocity. Its new geometry gets accounted for as a fixed
+          // obstacle when placing new comments. Existing sprites are repainted.
+          const font=track.displayMode==='center'
+            ? Math.ceil((fresh.fontsize||m.fontsize)*1.5) : fresh.fontsize;
+          const width=Math.ceil(measureText(fresh.text,font));
+          const end=track.displayMode==='center' ? track.end
+            : track.time+(m.w+18+width)/track.velocity;
+          return {...track,text:fresh.text,fontsize:font,
+            lineCount:fresh.lineCount,width,end};
+        });
+    }
+    const previous=preserveStarted(allTracks);
+    const previousCenter=preserveStarted(allCenter);
     const fixedIds=new Set([...previous,...previousCenter].map(t=>String(t.id)));
     const featured=schedule.events.filter(e=>features.has(String(e.id)) &&
       !L.shouldScrollFeatured(e,settings.featuredScrollFromLines) && !fixedIds.has(String(e.id)))
-      .filter(e=>force||e.time>now+1.2).sort((a,b)=>a.time-b.time);
+      .sort((a,b)=>a.time-b.time);
     const centers=L.planFeatured(featured,{fixedTracks:previousCenter,
       viewportHeight:m.h,viewportWidth:m.w,duration,fontsize:m.fontsize,
       measureText,gap:5});
     const centeredIds=new Set(centers.tracks.map(e=>String(e.id)));
-    const scrolling=schedule.events.filter(e=>!centeredIds.has(String(e.id)));
-    const result=previous.length?L.mergeStableTracks(previous,scrolling,opts,now,1.2):L.planTracks(scrolling,opts);
-    allTracks=result.tracks;allCenter=centers.tracks;
-    maxTravel=result.maxTravel;
+    // If a featured comment did not fit at the bottom, it gets its normal
+    // scrolling attempt rather than disappearing altogether.
+    const scrolling=schedule.events.filter(e=>!centeredIds.has(String(e.id)) && !fixedIds.has(String(e.id)));
+    const result=L.planTracks(scrolling,{...opts,fixedTracks:previous});
+    allTracks=[...previous,...result.tracks].sort((a,b)=>a.time-b.time||L.likeRank(a,b));
+    allCenter=centers.tracks;
+    maxTravel=Math.max(result.maxTravel,...previous.map(t=>t.end-t.time),0);
     selectedCount=allTracks.length+allCenter.length+generic.length;
     droppedCount=Math.max(0,records.size-selectedCount);
     computed=true;dirty=false;
   }
   lastNow=now;lastDuration=duration;
-  const before=Math.max(35,Math.min(300,maxTravel+4));
-  const from=Math.max(0,now-before),until=now+100;
-  // Send only a rolling time window, never tens of thousands of rendered track objects.
-  const select=arr=>arr.slice(L.lowerBound(arr,from)).filter(t=>t.time<=until&&t.end>=now-2);
+  const from=Math.max(0,now-35),until=now+100;
+  // The advertised window must be fully covered by the transferred tracks:
+  // include all comments overlapping [from,until], even those which started
+  // earlier than `from`. Only the window is serialized; all history stays here.
+  const select=(arr,lookback)=>{
+    const visible=[];
+    for(let i=L.lowerBound(arr,Math.max(0,from-lookback));i<arr.length;i++){
+      const track=arr[i];
+      if(track.time>until)break;
+      if(track.end>from)visible.push(track);
+    }
+    return visible;
+  };
   self.postMessage({type:'built',videoId,requestId:message.requestId,
-    tracks:select(allTracks),centerTracks:select(allCenter),generic,
+    tracks:select(allTracks,maxTravel+1),centerTracks:select(allCenter,10),generic,
     maxTravel,selectedCount,droppedCount,windowFrom:from,windowUntil:until});
 }
 self.addEventListener('message',({data})=>{
@@ -83,7 +118,8 @@ self.addEventListener('message',({data})=>{
     if(!data||!['reset','batch','translated','translations','build'].includes(data.type))return;
     if(data.type==='reset'){
       videoId=data.videoId||'';records.clear();translations.clear();widthCache.clear();
-      dirty=true;computed=false;allTracks=[];allCenter=[];generic=[];selectedCount=0;droppedCount=0;
+      dirty=true;computed=false;cachedOptions='';allTracks=[];allCenter=[];generic=[];
+      selectedCount=0;droppedCount=0;maxTravel=0;
       return;
     }
     if(data.videoId!==videoId)return;

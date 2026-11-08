@@ -28,7 +28,9 @@ function renderStatus(status){
   const el=document.getElementById('statusText');
   if (!status?.videoId){el.textContent=t('unavailable');return;}
   if(status.count){el.textContent=t('statusCounts',status.count,status.selectedCount,status.droppedCount);return;}
-  // API errors/status messages are not localized; use an understandable loading placeholder.
+  if(status.statusCode==='error'){el.textContent=t('statusFailure');return;}
+  if(status.statusCode==='noToken'){el.textContent=t('statusNoToken');return;}
+  if(status.statusCode==='empty'){el.textContent=t('statusEmpty');return;}
   el.textContent=t('statusLoading');
 }
 async function refreshStatus(){

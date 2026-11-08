@@ -42,6 +42,12 @@ for(const f of ['i18n.js','ycs-parser.js','popup.js'])
     selectedCount:1,droppedCount:99}},{tab:{id:777}});
   assert.match(getElementById('statusText').textContent,/100.*70.*30/,
     'updates from another YouTube tab must be ignored');
+  onRuntimeMessage({type:'YDL_STATUS_UPDATE',status:{videoId:'abcdefghijk',count:0,statusCode:'error'}},{tab:{id:42}});
+  assert.match(getElementById('statusText').textContent,/失敗/);
+  onRuntimeMessage({type:'YDL_STATUS_UPDATE',status:{videoId:'abcdefghijk',count:0,statusCode:'noToken'}},{tab:{id:42}});
+  assert.match(getElementById('statusText').textContent,/トークン/);
+  onRuntimeMessage({type:'YDL_STATUS_UPDATE',status:{videoId:'abcdefghijk',count:0,statusCode:'empty'}},{tab:{id:42}});
+  assert.match(getElementById('statusText').textContent,/ありません/);
   const hide=getElementById('hideTimestamps');hide.checked=true;hide.trigger('change');
   assert.ok(writes.some(x=>x.hideTimestamps===true));
   console.log('PASS: popup count updates in place without reopening, tab isolation, timestamp setting');

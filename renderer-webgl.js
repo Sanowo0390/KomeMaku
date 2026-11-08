@@ -14,6 +14,10 @@
       this.textures=[];
       this.glyphs=new Map();
       this.layouts=new Map();
+      this.advances=new Map();
+      const measureCanvas=typeof OffscreenCanvas==='function'?new OffscreenCanvas(2,2):document.createElement('canvas');
+      this.measureCtx=measureCanvas.getContext('2d',{alpha:true});
+      this.missingGlyphs=0;
       this.frame=0;
       this.used=0;this.frameTouched=new Set();
       this.width=1;this.height=1;
@@ -129,6 +133,17 @@
       this.glyphs.set(key,result);this.frameTouched.add(place.page);
       return result;
     }
+    _advance(char,size){
+      const key=size+'\0'+char;
+      const cached=this.advances.get(key);
+      if(cached!==undefined)return cached;
+      const ctx=this.measureCtx;
+      if(ctx)ctx.font=`700 ${size*this.pixelRatio}px system-ui, sans-serif`;
+      const width=ctx?Math.max(1,ctx.measureText(char).width/this.pixelRatio):size;
+      this.advances.set(key,width);
+      if(this.advances.size>8000)this.advances.clear();
+      return width;
+    }
     _layout(text,size,centered) {
       const key=size+'\0'+(centered?'1':'0')+'\0'+text;
       let result=this.layouts.get(key);
@@ -140,9 +155,8 @@
         const chars=segmenter?Array.from(segmenter.segment(line),part=>part.segment):Array.from(line);
         let x=0;
         const items=[];
-        for(const char of chars){const glyph=this._glyph(char,size);
-          if(!glyph)continue;
-          items.push({char,x});x+=glyph.advance;
+        for(const char of chars){
+          items.push({char,x});x+=this._advance(char,size);
         }
         return {items,width:x};
       });
@@ -154,7 +168,7 @@
     }
     resize(width,height){this.width=Math.max(1,width);this.height=Math.max(1,height);this.gl.viewport(0,0,this.canvas.width,this.canvas.height);}
     clear(){const gl=this.gl;gl.viewport(0,0,this.canvas.width,this.canvas.height);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);}
-    begin(opacity=1){this.clear();this.used=0;this.frameTouched.clear();this.groups=this.textures.map(()=>[]);this.alpha=opacity;this.frame++;}
+    begin(opacity=1){this.clear();this.used=0;this.missingGlyphs=0;this.frameTouched.clear();this.groups=this.textures.map(()=>[]);this.alpha=opacity;this.frame++;}
     drawText(text,x,y,size,color,centered=false){
       const layout=this._layout(text,size,centered);
       const step=Math.ceil(size*1.22+4),drawWidth=layout.width;
@@ -164,7 +178,8 @@
         const line=layout.rows[row];
         const origin=x+(centered?(drawWidth-line.width)/2:0);
         for(const entry of line.items){
-          const g=this._glyph(entry.char,size);if(!g)continue;
+          const g=this._glyph(entry.char,size);
+          if(!g){this.missingGlyphs++;continue;}
           const px=origin+entry.x-g.pad/g.scale;
           const py=y+row*step+(step-g.h/g.scale)/2;
           const x0=px,x1=px+g.w/g.scale,y0=py,y1=py+g.h/g.scale;
@@ -192,8 +207,8 @@
       }
       gl.bindVertexArray(null);
     }
-    clearCache(){this.layouts.clear();this.glyphs.clear();for(const p of this.textures){p.x=1;p.y=1;p.rowHeight=0;this.gl.bindTexture(this.gl.TEXTURE_2D,p.texture);this.gl.texImage2D(this.gl.TEXTURE_2D,0,this.gl.RGBA,this.atlasSize,this.atlasSize,0,this.gl.RGBA,this.gl.UNSIGNED_BYTE,null);}}
-    destroy(){const gl=this.gl;for(const p of this.textures)gl.deleteTexture(p.texture);gl.deleteBuffer(this.buffer);gl.deleteVertexArray(this.vao);gl.deleteProgram(this.program);this.textures.length=0;this.glyphs.clear();this.layouts.clear();}
+    clearCache(){this.layouts.clear();this.glyphs.clear();this.advances.clear();for(const p of this.textures){p.x=1;p.y=1;p.rowHeight=0;this.gl.bindTexture(this.gl.TEXTURE_2D,p.texture);this.gl.texImage2D(this.gl.TEXTURE_2D,0,this.gl.RGBA,this.atlasSize,this.atlasSize,0,this.gl.RGBA,this.gl.UNSIGNED_BYTE,null);}}
+    destroy(){const gl=this.gl;for(const p of this.textures)gl.deleteTexture(p.texture);gl.deleteBuffer(this.buffer);gl.deleteVertexArray(this.vao);gl.deleteProgram(this.program);this.textures.length=0;this.glyphs.clear();this.layouts.clear();this.advances.clear();}
   }
   globalThis.KomeMakuGL=GlyphRenderer;
   if(typeof module==='object'&&module.exports)module.exports=GlyphRenderer;
