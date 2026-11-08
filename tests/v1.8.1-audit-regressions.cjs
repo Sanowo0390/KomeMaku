@@ -84,7 +84,9 @@ assert.ok(!result.centerTracks.some(x=>x.id==='popular-start'));
 result=build(13,0,false,{...settings,featuredPercent:30});
 assert.ok(result.centerTracks.some(x=>x.id==='popular-start'));
 // 5. Busy single lane respects newest preference, not like count.
-reset([item('old','old comment',0,{likes:100,publishedAt:100000}),item('new','new comment',0,{likes:1,publishedAt:200000})]);
+// Long simultaneous comments genuinely exceed a single lane's capacity,
+// even when early starts for timecodes are permitted.
+reset([item('old','older '.repeat(28),0,{likes:100,publishedAt:100000}),item('new','newer '.repeat(28),0,{likes:1,publishedAt:200000})]);
 result=build(14,0,true,{...settings,selectionOrder:'newest'}, {...m,lanes:1},10);
 assert.ok(result.tracks.some(x=>x.id==='new'),'newer post must win collision');
 assert.ok(!result.tracks.some(x=>x.id==='old'),'older post must lose if no lane remains');

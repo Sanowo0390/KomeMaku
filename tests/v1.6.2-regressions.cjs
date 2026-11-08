@@ -7,7 +7,7 @@ const root=path.resolve(__dirname,'..');
 const L=require('../logic.js');
 const I18N=require('../i18n.js');
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json')));
-assert.equal(manifest.version,'1.8.2');
+assert.equal(manifest.version,'1.8.3');
 
 // Remove timestamp markers without changing the comment's playback placement.
 assert.equal(L.hideTimestamps('ここ好き 0:35、ここも 1:20\n次の行 02:00:10'), 'ここ好き 、ここも\n次の行');
@@ -110,7 +110,7 @@ video.currentTime=3;raf(120);
 assert.ok(count<=translationCallbacks.length,'previous video response must not disable current translation');
 // Centered multiline text must be truly bottom-aligned and line-by-line centered.
 window.dispatchEvent({type:'ydl:batch',detail:{...requests.at(-1),comments:[
-  {id:'featured-multi',text:'first line\nsecond line',likes:10000,time:0}]}});
+  {id:'featured-multi',text:'first line\nsecond line',likes:10000,time:2}]}});
 storageHandler({featuredPercent:{newValue:30},preserveLineBreaks:{newValue:true}},'local');
 renders=[];video.currentTime=2.5;raf(200);
 const centerLines=renders.filter(x=>['first line','second line'].includes(x.text));

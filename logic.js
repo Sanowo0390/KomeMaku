@@ -137,6 +137,14 @@
     const pxPerSecond = Math.max(60, (w + Math.min(width, w)) / (9 / multiplier));
     return (w + 18 + width) / pxPerSecond;
   }
+  // How long the leading edge needs to cross from its entry position at the
+  // right to the left edge. Use exactly the same velocity as createTrack() and
+  // the same starting X coordinate as trackX(), including its 10px padding.
+  function timestampHeadLeadSeconds(textWidth, viewportWidth, speedMultiplier = 1, duration = Infinity, finishMargin = 0.6) {
+    const w = Math.max(1, Number(viewportWidth) || 1);
+    const width = Math.ceil(Math.max(0, Number(textWidth) || 0));
+    return (w + 10) / scrollingSpeed(width, w, speedMultiplier, duration, finishMargin);
+  }
   function buildSchedule(records, duration, density, options = {}) {
     const eligible = records.filter(x => x.source !== "live");
     const unlimited = Number(density) >= 11;
@@ -179,10 +187,19 @@
         ? (Number.isFinite(item.time) && item.time >= 0 && item.time < duration ? [item.time] : [])
         : parseTimes(item.scheduleText ?? item.text, duration);
       if (times.length) {
-        // Timestamped comments also need enough scrolling time. If the
-        // timestamp is too close to the end, start a little early instead.
-        const latest = validDuration ? Math.max(0, duration - travelFor(item) - finishMargin) : times[0];
-        events.push({...item, time:Math.min(times[0], latest),explicitTime:true});
+        // A timecode marks the instant the *leading* (leftmost) glyph reaches
+        // the LEFT edge, not the instant the comment enters from the right.
+        // Only scrolling comments are advanced; fixed/featured comments still
+        // appear at timestampTime (the exact requested media time).
+        const rawLead = typeof options.timestampLeadFor === 'function'
+          ? Number(options.timestampLeadFor(item)) : 0;
+        const headLead = Number.isFinite(rawLead) ? Math.max(0,rawLead) : 0;
+        const latest = validDuration ? Math.max(0,duration - travelFor(item) - finishMargin) : times[0];
+        // A negative start is intentional for early timecodes. It positions
+        // the comment partially onscreen at video time zero, allowing even
+        // 0:00 and 0:02 to meet the left-edge timing without changing speed.
+        events.push({...item,time:Math.min(times[0]-headLead,latest),
+          timestampTime:times[0],explicitTime:true});
       } else generic.push(item);
     }
     // One non-timestamped occurrence per video play; distribute over the
@@ -240,7 +257,11 @@
     const duration = Number(opts.duration);
     const margin = Number.isFinite(opts.finishMargin) ? opts.finishMargin : 0.6;
     const velocity = scrollingSpeed(width, w, (opts.speed || 1) * (Number(event.speedFactor) || 1), duration, margin);
-    const target = Math.max(0, Number(event.time) || 0);
+    // Timestamped comments may have started before video time zero, so the
+    // first visible frame can already show the leading glyph at the left.
+    const rawTarget = Number(event.time);
+    const target = event.explicitTime && Number.isFinite(rawTarget)
+      ? rawTarget : Math.max(0, rawTarget || 0);
     // Normal rows (0,2,4...) never overlap each other. When all normal rows
     // are occupied, fallback rows (1,3,5...) sit half a line lower, permitting
     // *controlled visual overlap* with normal rows, Niconico-style. Same-parity
@@ -303,7 +324,11 @@
       const lines=String(event.text).split('\n').length;
       const height=lineStepFor(font,opts.lineSpacing)*(lines-1)+Math.ceil(font*1.22+4)+2*Math.ceil(Math.max(3,font/7)+3);
       const width=Number(opts.measureText(event.text,font));
-      const start=Math.max(0,Number(event.time)||0), end=start+lifetime;
+      // Scrolling timecodes are advanced for left-edge arrival; featured
+      // (stationary) comments still start at the original specified time.
+      const intendedTime=event.explicitTime && Number.isFinite(event.timestampTime)
+        ? event.timestampTime : event.time;
+      const start=Math.max(0,Number(intendedTime)||0), end=start+lifetime;
       if(!Number.isFinite(width) || width>viewportWidth*.92 || height>viewportHeight-3 ||
         (Number.isFinite(duration) && duration>0 && end>duration-.4)) {
         dropped++;rejected.push(event);continue;
@@ -346,7 +371,7 @@
     for (const event of events) {
       // The caller submits events in wanted-time order. Expired tracks can
       // never collide with any later event, so keep only recent lane entries.
-      const wanted = Math.max(0, Number(event.time) || 0);
+      const wanted = Number(event.time) || 0;
       for (let lane = 0; lane < lanes; lane++) {
         if (buckets[lane].length && buckets[lane][0].end <= wanted) {
           buckets[lane] = buckets[lane].filter(t => t.end > wanted);
@@ -387,7 +412,7 @@
   function trackX(track, videoTime, viewportWidth) {
     return viewportWidth + 10 - track.velocity * (videoTime - track.time);
   }
-  const api = Object.freeze({lineStepFor,normalizeText, cleanOriginalText, hideTimestamps, prepareText, lineCount, selectFeatured, shouldScrollFeatured, mergeStableTracks, parseTimes, lowerBound, hash, parseLikeCount, likeRank, newestRank, selectByLikes, selectForDisplay, commentColor, speedFactor, scrollTravelSeconds, buildSchedule, scrollingSpeed, safeFollowingStart, createTrack, planFeatured, planTracks, visibleTracks, paceFrame, trackX});
+  const api = Object.freeze({lineStepFor,normalizeText, cleanOriginalText, hideTimestamps, prepareText, lineCount, selectFeatured, shouldScrollFeatured, mergeStableTracks, parseTimes, lowerBound, hash, parseLikeCount, likeRank, newestRank, selectByLikes, selectForDisplay, commentColor, speedFactor, scrollTravelSeconds, timestampHeadLeadSeconds, buildSchedule, scrollingSpeed, safeFollowingStart, createTrack, planFeatured, planTracks, visibleTracks, paceFrame, trackX});
   globalThis.YDLLogic = api;
   if (typeof module === "object" && module.exports) module.exports = api;
 })();

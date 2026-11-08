@@ -46,7 +46,11 @@ function compute(message){
         speedFactor:L.speedFactor(record.id,settings.speedMode)});
     }
     const travelFor=r=>L.scrollTravelSeconds(measureText(r.text,r.fontsize||m.fontsize),m.w,settings.speed*r.speedFactor);
-    const schedule=L.buildSchedule(eligible,duration,settings.density,{travelFor,selectionOrder:settings.selectionOrder});
+    const timestampLeadFor=record=>L.timestampHeadLeadSeconds(
+      measureText(record.text,record.fontsize||m.fontsize),m.w,
+      settings.speed*record.speedFactor,duration,.6);
+    const schedule=L.buildSchedule(eligible,duration,settings.density,
+      {travelFor,timestampLeadFor,selectionOrder:settings.selectionOrder});
     generic=schedule.generic;
     const features=L.selectFeatured(schedule.events,settings.featuredPercent);
     const opts={viewportWidth:m.w,lanes:m.lanes,duration,speed:settings.speed,
@@ -103,7 +107,7 @@ function compute(message){
   // earlier than `from`. Only the window is serialized; all history stays here.
   const select=(arr,lookback)=>{
     const visible=[];
-    for(let i=L.lowerBound(arr,Math.max(0,from-lookback));i<arr.length;i++){
+    for(let i=L.lowerBound(arr,from-lookback);i<arr.length;i++){
       const track=arr[i];
       if(track.time>until)break;
       if(track.end>from)visible.push(track);

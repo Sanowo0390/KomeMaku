@@ -8,7 +8,7 @@ const L=require('../logic.js');
 const P=require('../ycs-parser.js');
 const manifest=require('../manifest.json');
 const I18N=require('../i18n.js');
-assert.equal(manifest.version,'1.8.2');
+assert.equal(manifest.version,'1.8.3');
 assert.equal(manifest.options_ui.page,'options.html');
 assert.ok(manifest.content_scripts[1].js.indexOf('ycs-parser.js')<manifest.content_scripts[1].js.indexOf('content.js'));
 assert.ok(fs.readFileSync(path.join(root,'options.html'),'utf8').includes('options.js'));

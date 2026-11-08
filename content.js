@@ -3,7 +3,7 @@
   if (window.__YDL_CONTENT_INSTALLED__) return;
   window.__YDL_CONTENT_INSTALLED__ = true;
 
-  const {lineStepFor, normalizeText, cleanOriginalText, hideTimestamps, prepareText, parseLikeCount, buildSchedule, lowerBound, scrollTravelSeconds, createTrack, planFeatured, planTracks, mergeStableTracks, selectFeatured, shouldScrollFeatured, visibleTracks, paceFrame, trackX, commentColor, speedFactor} = globalThis.YDLLogic;
+  const {lineStepFor, normalizeText, cleanOriginalText, hideTimestamps, prepareText, parseLikeCount, buildSchedule, lowerBound, scrollTravelSeconds, timestampHeadLeadSeconds, createTrack, planFeatured, planTracks, mergeStableTracks, selectFeatured, shouldScrollFeatured, visibleTracks, paceFrame, trackX, commentColor, speedFactor} = globalThis.YDLLogic;
   const I18N = globalThis.YDLI18N;
   const parsePublishedAt = globalThis.YDLYcsParser?.parsePublishedAt || (()=>null);
   const t = (key,...args) => I18N.translate(I18N.detect(settings.language),key,...args);
@@ -368,7 +368,11 @@
         speedFactor:speedFactor(record.id,settings.speedMode)});
     }
     const travelFor=record=>scrollTravelSeconds(textWidth(record.text,record.fontsize||m.fontsize),m.w,settings.speed*record.speedFactor);
-    const schedule=buildSchedule(eligible,duration,settings.density,{travelFor,selectionOrder:settings.selectionOrder});
+    const timestampLeadFor=record=>timestampHeadLeadSeconds(
+      textWidth(record.text,record.fontsize||m.fontsize),m.w,
+      settings.speed*record.speedFactor,duration,.6);
+    const schedule=buildSchedule(eligible,duration,settings.density,
+      {travelFor,timestampLeadFor,selectionOrder:settings.selectionOrder});
     untimed=schedule.generic;
     const features=selectFeatured(schedule.events,settings.featuredPercent);
     const opts={viewportWidth:m.w,lanes:m.lanes,duration,speed:settings.speed,
