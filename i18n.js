@@ -3,6 +3,7 @@
   'use strict';
   const strings = {
     ja: {
+      rendererMode:'描画エンジン',rendererAuto:'自動（WebGL2優先）',fpsLimit:'弾幕のFPS',fpsAuto:'自動（負荷に応じて調整）',rendererHint:'WebGL2が使えない場合はCanvas 2Dに自動切り替えします。',
       translateComments:'コメントを自動翻訳',translateLanguage:'翻訳先の言語',translateNotice:'翻訳ON時、必要なコメントのみ外部の翻訳サービスに送信します。失敗時は原文を表示します。',autoShrink:'行数が多いコメントを自動縮小',halfLineOverlap:'混雑時だけ半行ずらす（ニコニコ風）',hideTimestamps:'コメント内のタイムスタンプを隠す',
       hideReplies:'返信コメントを非表示', preserveLineBreaks:'コメントの改行を維持',
       hideFromLines:'この行数以上を非表示', featuredPercent:'画面下端に拡大表示する人気コメント',
@@ -32,6 +33,7 @@
       importDone:n=>`${n.toLocaleString()}件を送信しました（重複は除外）`, importFailed:e=>`読み込み失敗: ${e}`
     },
     en: {
+      rendererMode:'Renderer',rendererAuto:'Auto (prefer WebGL2)',fpsLimit:'Danmaku FPS',fpsAuto:'Auto (adaptive)',rendererHint:'Canvas 2D fallback is used when WebGL2 is unavailable.',
       translateComments:'Translate comments',translateLanguage:'Translate to',translateNotice:'When enabled, selected comments are sent to an external translation service. Original text is shown if translation fails.',autoShrink:'Auto-shrink multiline comments',halfLineOverlap:'Stagger half a line only when crowded',hideTimestamps:'Hide timestamps in comments',
       hideReplies:'Hide replies', preserveLineBreaks:'Keep comment line breaks',
       hideFromLines:'Hide comments with this many lines or more', featuredPercent:'Featured comments at bottom',
@@ -60,6 +62,7 @@
       importDone:n=>`Sent ${n.toLocaleString()} comments (duplicates omitted)`, importFailed:e=>`Import failed: ${e}`
     },
     'zh-CN': {
+      rendererMode:'渲染引擎',rendererAuto:'自动（优先WebGL2）',fpsLimit:'弹幕帧率',fpsAuto:'自动（自适应）',rendererHint:'不支持WebGL2时自动回退Canvas 2D。',
       translateComments:'翻译评论',translateLanguage:'翻译目标语言',translateNotice:'开启后，部分评论将发送至外部翻译服务；翻译失败则显示原文。',autoShrink:'自动缩小多行评论',halfLineOverlap:'仅拥挤时错开半行',hideTimestamps:'隐藏评论中的时间戳',
       hideReplies:'隐藏回复', preserveLineBreaks:'保留评论换行',
       hideFromLines:'隐藏达到此行数的评论', featuredPercent:'底部高赞评论比例',
@@ -86,6 +89,7 @@
       importDone:n=>`已发送 ${n.toLocaleString()} 条评论（已去重）`, importFailed:e=>`导入失败：${e}`
     },
     'zh-TW': {
+      rendererMode:'渲染引擎',rendererAuto:'自動（優先WebGL2）',fpsLimit:'彈幕影格率',fpsAuto:'自動（自適應）',rendererHint:'無法使用WebGL2時自動回退Canvas 2D。',
       translateComments:'翻譯留言',translateLanguage:'翻譯目標語言',translateNotice:'開啟後，部分留言會傳送至外部翻譯服務；失敗時顯示原文。',autoShrink:'自動縮小多行留言',halfLineOverlap:'僅擁擠時錯開半行',hideTimestamps:'隱藏留言中的時間戳',
       hideReplies:'隱藏回覆', preserveLineBreaks:'保留留言換行',
       hideFromLines:'隱藏達此行數的留言', featuredPercent:'底部熱門留言比例',

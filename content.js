@@ -9,7 +9,7 @@
   const DEFAULTS = Object.freeze({enabled:true,fontSize:24,opacity:0.92,speed:1,density:5,
     color:'#ffffff',colorMode:'single',speedMode:'fixed',language:'auto',
     hideReplies:false,preserveLineBreaks:false,hideFromLines:0,featuredPercent:0,
-    translateComments:false,translateLanguage:'ja',autoShrink:true,halfLineOverlap:true,hideTimestamps:false});
+    translateComments:false,translateLanguage:'ja',autoShrink:true,halfLineOverlap:true,hideTimestamps:false,rendererMode:'auto',fpsLimit:0});
   const settings = {...DEFAULTS};
   const records = [];
   const recordKeys = new Set();
@@ -54,7 +54,9 @@
             if(epoch!==translationEpoch)return;
             translationJobs=Math.max(0,translationJobs-1);translationPending.delete(key);
             if(response?.ok && typeof response.text==='string' && response.text.trim()) {
-              translationCache.set(key,cleanOriginalText(response.text));
+              const translated=cleanOriginalText(response.text);
+              translationCache.set(key,translated);
+              schedulerSend({type:'translated',videoId,source,language:target,text:translated});
               translationFailed.delete(key);
               if(translationCache.size>4000)translationCache.delete(translationCache.keys().next().value);
               queueRebuild();
@@ -72,6 +74,81 @@
       }
       if(translationJobs>=2 || queued>=2)break;
     }
+  }
+  // WebGL2 is preferred on supported GPUs, while 2D remains the safe fallback.
+  let webgl=null, rendererName='canvas';
+  let measureContext=null, animationCost=0, autoFps=60, autoFpsCheck=0;
+  // Scheduling lives in an extension-origin iframe worker. It is optional:
+  // if CSP, iframe or worker creation fails, the original 2D scheduler remains usable.
+  let schedulerFrame=null,schedulerReady=false,schedulerHealthy=true;
+  let schedulerRequest=0,schedulerPending=0,schedulerLastPlanAt=0;
+  let schedulerWindowFrom=0,schedulerWindowUntil=0;
+  let schedulerStarted=false;
+  const schedulerOrigin=(typeof chrome.runtime?.getURL==='function')
+    ? chrome.runtime.getURL('scheduler-host.html').match(/^chrome-extension:\/\/[^/]+/)?.[0]||null : null;
+  function schedulerSend(data){
+    if(!schedulerReady||!schedulerFrame?.contentWindow)return false;
+    try{schedulerFrame.contentWindow.postMessage({source:'komemaku-content',...data},schedulerOrigin);return true;}
+    catch{return false;}
+  }
+  function syncTranslations(){
+    if(!schedulerReady||!translationCache.size)return;
+    const entries=[...translationCache.entries()];
+    for(let i=0;i<entries.length;i+=400)
+      schedulerSend({type:'translations',videoId,entries:entries.slice(i,i+400)});
+  }
+  function disableScheduler(reason){
+    if(!schedulerHealthy)return;
+    console.warn('[KomeMaku] Worker scheduler fallback:',reason);
+    schedulerHealthy=false;schedulerReady=false;schedulerPending=0;
+    if(schedulerFrame){schedulerFrame.remove();schedulerFrame=null;}
+    queueRebuild(true);
+  }
+  function startScheduler(){
+    if(schedulerStarted||!schedulerOrigin||!document.documentElement)return;
+    schedulerStarted=true;
+    window.addEventListener('message',event=>{
+      if(!schedulerFrame||event.source!==schedulerFrame.contentWindow||
+         event.origin!==schedulerOrigin||event.data?.source!=='komemaku-scheduler')return;
+      const message=event.data;
+      if(message.type==='host-ready'){return;}
+      if(message.type==='ready'){
+        schedulerReady=true;schedulerPending=0;
+        schedulerSend({type:'reset',videoId});
+        for(let i=0;i<records.length;i+=800)schedulerSend({type:'batch',videoId,records:records.slice(i,i+800)});
+        syncTranslations();
+        if(records.length)queueRebuild(true);
+      }else if(message.type==='built'){
+        if(message.videoId!==videoId||message.requestId!==schedulerPending)return;
+        schedulerPending=0;
+        renderTracks=message.tracks||[];centerTracks=message.centerTracks||[];
+        untimed=message.generic||[];maxTravel=message.maxTravel||0;
+        selectedCount=message.selectedCount||0;droppedCount=message.droppedCount||0;
+        schedulerWindowFrom=message.windowFrom||0;schedulerWindowUntil=message.windowUntil||0;
+        schedulerLastPlanAt=globalThis.performance?.now?.()??Date.now();
+        lastRebuildAt=schedulerLastPlanAt;invalidated=true;notifyStatus();
+      }else if(message.type==='error')disableScheduler(message.error||'unknown error');
+    });
+    const iframe=document.createElement('iframe');
+    schedulerFrame=iframe;
+    iframe.setAttribute('aria-hidden','true');
+    iframe.setAttribute('tabindex','-1');
+    Object.assign(iframe.style,{position:'fixed',width:'0',height:'0',border:'0',opacity:'0',pointerEvents:'none',left:'-100px'});
+    iframe.src=chrome.runtime.getURL('scheduler-host.html');
+    iframe.addEventListener('error',()=>disableScheduler('iframe failed'));
+    document.documentElement.appendChild(iframe);
+    // Do not wait indefinitely for an extension iframe blocked by page policy.
+    setTimeout(()=>{if(!schedulerReady&&schedulerHealthy)disableScheduler('startup timeout');},7000);
+  }
+  function workerBuild(force){
+    if(!schedulerReady||!schedulerHealthy||!currentVideo||!stage)return false;
+    const m=metrics(), now=Number(currentVideo.currentTime)||0;
+    schedulerPending=++schedulerRequest;
+    const sent=schedulerSend({type:'build',videoId,requestId:schedulerPending,settings:{...settings},m,
+      duration:currentVideo.duration,now,force});
+    if(!sent)schedulerPending=0;
+    else{const requested=schedulerPending;setTimeout(()=>{if(schedulerPending===requested)disableScheduler('unresponsive scheduler');},15000);}
+    return sent;
   }
   const spriteCache = new Map();
   let spriteBytes = 0;
@@ -112,9 +189,13 @@
     bridgeRequest = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     bridgeRetries = 0;
     liveSeen.clear();
+    schedulerPending=0;schedulerWindowFrom=0;schedulerWindowUntil=0;
+    schedulerSend({type:'reset',videoId});
+    syncTranslations();
     liveSeenOrder.length = 0;
     liveCount = 0;
-    if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (canvas && webgl)webgl.clear();
+    else if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (id) requestComments();
   }
 
@@ -141,6 +222,7 @@
   function addComments(items, source) {
     if (!Array.isArray(items)) return;
     let changed = false;
+    const delta=[];
     for (const item of items) {
       const originalText=cleanOriginalText(item?.text);
       if (!originalText) continue;
@@ -153,12 +235,16 @@
         // often provides the accurate score later. Keep the higher known count.
         const previous = recordByKey.get(key);
         if (previous) {
+          const wasChanged=changed;
+          changed=false;
           if (likes > previous.likes) {previous.likes = likes;changed = true;}
           if (!previous.isReply && item.isReply===true) {previous.isReply=true;changed=true;}
           if(!previous.parentId && item.parentId) {previous.parentId=item.parentId;changed=true;}
           if (originalText.length > previous.originalText.length) {
             previous.originalText=originalText;changed=true;
           }
+          if(changed)delta.push({...previous});
+          changed=wasChanged||changed;
         }
         continue;
       }
@@ -167,9 +253,12 @@
         time:Number.isFinite(item.time) && item.time >= 0 ? item.time : null};
       records.push(record);
       recordByKey.set(key, record);
+      delta.push(record);
       changed = true;
     }
     if (changed) {
+      if(schedulerReady&&schedulerHealthy)for(let i=0;i<delta.length;i+=800)
+        schedulerSend({type:'batch',videoId,records:delta.slice(i,i+800)});
       sources.add(source);
       queueRebuild();
       commentStatus = `${records.length.toLocaleString()}件のコメントを取得`;
@@ -189,13 +278,14 @@
 
   function currentStatus() {
     return {videoId,count:records.length+liveCount,selectedCount,droppedCount,
-      sources:Array.from(sources),status:commentStatus};
+      sources:Array.from(sources),status:commentStatus,renderer:rendererName,
+      scheduler:schedulerReady?'worker':'main',fpsLimit:settings.fpsLimit||'auto'};
   }
   function notifyStatus() {
     try { chrome.runtime.sendMessage({type:'YDL_STATUS_UPDATE',status:currentStatus()},()=>void chrome.runtime.lastError); }
     catch { /* popup closed or extension context changed */ }
   }
-  function clearSprites() {spriteCache.clear();spriteBytes=0;}
+  function clearSprites() {spriteCache.clear();spriteBytes=0;webgl?.clearCache();}
   function textWidth(text,fontPx) {
     const key=`${fontPx}\0${text}`;
     if (textWidths.has(key)) return textWidths.get(key);
@@ -244,6 +334,7 @@
     const m=metrics();
     const duration=currentVideo?.duration;
     if (!ctx || m.w<1) return;
+    if(workerBuild(force))return;
     const eligible=[];
     for(const record of records) {
       if(settings.hideReplies && record.isReply) continue;
@@ -339,6 +430,7 @@
       return;
     }
     if (canvas) canvas.remove();
+    if (webgl){webgl.destroy();webgl=null;}
     destroyPlayerControls();
     if (stageResize) stageResize.disconnect();
     currentVideo = video;
@@ -350,7 +442,7 @@
       pointerEvents:"none", zIndex:"30", display:"block", userSelect:"none"
     });
     stage.appendChild(canvas);
-    ctx = canvas.getContext("2d", {alpha:true});
+    setupRenderer();
     stageResize = new ResizeObserver(resize);
     stageResize.observe(stage);
     liveTracks = [];
@@ -371,6 +463,41 @@
     ensurePlayerControls();
   }
 
+  function setupRenderer(){
+    if(!canvas)return;
+    rendererName='canvas';webgl=null;
+    if(settings.rendererMode!=='canvas'&&typeof globalThis.KomeMakuGL==='function'){
+      try{
+        webgl=new globalThis.KomeMakuGL(canvas,{pixelRatio:Math.min(window.devicePixelRatio||1,1.5)});
+        rendererName='webgl2';
+        canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();settings.rendererMode='canvas';switchRenderer();},{once:true});
+      }catch(error){
+        console.warn('[KomeMaku] Canvas 2D fallback:',error?.message||error);
+        // A WebGL context that failed after allocation cannot be reused as 2D.
+        const old=canvas;canvas=document.createElement('canvas');canvas.id=old.id;
+        if(old.style.cssText)canvas.style.cssText=old.style.cssText;
+        else Object.assign(canvas.style,old.style);old.remove();stage.appendChild(canvas);
+      }
+    }
+    if(webgl){
+      if(!measureContext){
+        const surface=typeof OffscreenCanvas==='function'?new OffscreenCanvas(2,2):document.createElement('canvas');
+        measureContext=surface.getContext('2d',{alpha:true});
+      }
+      ctx=measureContext;
+    }else ctx=canvas.getContext('2d',{alpha:true});
+    clearSprites();invalidated=true;
+  }
+  function switchRenderer(){
+    if(!stage||!canvas)return;
+    const old=canvas;
+    if(webgl){webgl.destroy();webgl=null;}
+    canvas=document.createElement('canvas');canvas.id=old.id;
+    if(old.style.cssText)canvas.style.cssText=old.style.cssText;
+    else Object.assign(canvas.style,old.style);
+    old.remove();stage.appendChild(canvas);
+    setupRenderer();resize();queueRebuild(true);
+  }
   function resize() {
     if (!stage || !canvas || !ctx) return;
     const width = Math.max(stage.clientWidth, 0);
@@ -385,7 +512,12 @@
     if (changed) {
       canvas.width = newW; canvas.height = newH;
     }
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    if(webgl){
+      const glyphRatio=Math.max(1,ratio);
+      if(Math.abs(webgl.pixelRatio-glyphRatio)>.08){webgl.pixelRatio=glyphRatio;webgl.clearCache();}
+      webgl.resize(width,height);
+    }
+    else ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     if (changed && records.length) queueRebuild(true);
     invalidated=true;
   }
@@ -446,6 +578,7 @@
     // than reserving a large (13%) unused margin below Niconico-style text.
     const y=isCenter?Math.max(0,m.h-2-(item.bottomOffset||0)-h+(lineHeight-size)/2)
       :8+(item.offset||0)*m.laneStep+item.lane*m.laneStep;
+    if(webgl){webgl.drawText(item.text,x,y,size,color,isCenter);return;}
     const sprite=spriteFor(item.text,size,color,isCenter);
     if(sprite) {
       ctx.drawImage(sprite.surface,Math.round(x-sprite.pad),Math.round(y-sprite.pad));
@@ -463,17 +596,21 @@
     requestAnimationFrame(tick);
     if (!stage || !canvas || !ctx || !currentVideo?.isConnected) return;
     if(document.visibilityState==='hidden') return;
-    // Limiting raster work to 30fps avoids excessive GPU uploads on 144Hz displays.
-    if(!invalidated && timestamp-lastRenderedAt<33) return;
+    const fps=settings.fpsLimit||autoFps;
+    if(!invalidated && timestamp-lastRenderedAt<1000/fps-1.5) return;
     const m=metrics();
     if (m.w<1 || m.h<1) return;
     const t=currentVideo.currentTime;
     if(!Number.isFinite(t)) return;
+    if(schedulerReady&&schedulerHealthy&&!schedulerPending&&records.length&&
+      (t>schedulerWindowUntil-22||t<schedulerWindowFrom-2))workerBuild(false);
+    const paintStart=globalThis.performance?.now?.()??timestamp;
     // Don't keep redrawing identical paused video frames.
     if(!invalidated && t===lastPaintTime) return;
     const ad=Boolean(stage.classList.contains('ad-showing') || stage.querySelector('.ytp-ad-player-overlay'));
     if (!settings.enabled || ad) {
-      ctx.clearRect(0,0,m.w,m.h);invalidated=false;lastPaintTime=t;lastRenderedAt=timestamp;return;
+      if(webgl)webgl.clear();else ctx.clearRect(0,0,m.w,m.h);
+      invalidated=false;lastPaintTime=t;lastRenderedAt=timestamp;return;
     }
     if (lastVideoTime!==null && (t<lastVideoTime-.15 || t-lastVideoTime>3)) {
       liveTracks=[];nextGenericAt=null;
@@ -490,15 +627,21 @@
     liveTracks=liveTracks.filter(item=>t<item.end && t>=item.time-3);
     scheduleTranslations(t);
     const visible=visibleTracks(renderTracks,t,maxTravel);
-    ctx.clearRect(0,0,m.w,m.h);
-    ctx.save();ctx.globalAlpha=settings.opacity;
+    if(webgl)webgl.begin(settings.opacity);
+    else {ctx.clearRect(0,0,m.w,m.h);ctx.save();ctx.globalAlpha=settings.opacity;}
     for(const item of visible) drawComment(item,t,m);
     for(const item of liveTracks) if(t>=item.time&&t<item.end) drawComment(item,t,m);
     for(const item of centerTracks) {
       if(item.time>t) break;
       if(t<item.end) drawComment(item,t,m,true);
     }
-    ctx.restore();
+    if(webgl)webgl.end();else ctx.restore();
+    const elapsed=(globalThis.performance?.now?.()??timestamp)-paintStart;
+    animationCost=animationCost?animationCost*.88+elapsed*.12:elapsed;
+    if(settings.fpsLimit===0&&timestamp-autoFpsCheck>2500){
+      autoFps=animationCost>24?15:animationCost>14?24:animationCost>9?30:60;
+      autoFpsCheck=timestamp;
+    }
     invalidated=false;lastRenderedAt=timestamp;lastPaintTime=t;
   }
 
@@ -507,6 +650,8 @@
   const fields = [
     ['enabled','checkbox'], ['fontSize','range',14,38,1], ['speed','range',0.5,2,0.1],
     ['density','range',1,11,1], ['opacity','range',0.2,1,0.05],
+    ['rendererMode','select',['auto','webgl2','canvas']],
+    ['fpsLimit','select',['0','15','24','30','45','60','120']],
     ['colorMode','select',['single','random']], ['color','color'],
     ['speedMode','select',['fixed','random']], ['hideReplies','checkbox'],
     ['preserveLineBreaks','checkbox'], ['hideFromLines','range',0,10,1],
@@ -531,6 +676,8 @@
     return String(value);
   }
   function chooseLabel(key,value) {
+    if (key === 'rendererMode') return value==='auto'?t('rendererAuto'):value==='webgl2'?'WebGL2':'Canvas 2D';
+    if (key === 'fpsLimit') return Number(value)===0?t('auto'):`${value} FPS`;
     if (key === 'colorMode') return t(value === 'single' ? 'colorSingle':'colorRandom');
     if (key === 'speedMode') return t(value === 'fixed' ? 'speedFixed':'speedRandom');
     if (key === 'language') return value === 'auto' ? t('auto') : ({ja:'日本語',en:'English','zh-CN':'简体中文','zh-TW':'繁體中文'}[value] || value);
@@ -567,7 +714,7 @@
       } else {row.appendChild(input);panel.appendChild(row);}
       // Stop shortcuts/playback from reacting to slider and dropdown input.
       input.addEventListener(type==='checkbox'||type==='select'||type==='color'?'change':'input',()=>{
-        const value=type==='checkbox'?input.checked:type==='range'?Number(input.value):input.value;
+        const value=type==='checkbox'?input.checked:(type==='range'||key==='fpsLimit')?Number(input.value):input.value;
         chrome.storage.local.set({[key]:value});
       });
     }
@@ -634,11 +781,12 @@
       newVideo(id);
       if (domObserver) {domObserver.disconnect(); domObserver = null;}
     }
-    if (id) bindPlayer();
+    if (id) {bindPlayer();startScheduler();}
     else if (currentVideo || canvas) {
       destroyPlayerControls();
       if (canvas) canvas.remove();
       if (stageResize) stageResize.disconnect();
+      if(webgl){webgl.destroy();webgl=null;}
       currentVideo = null; stage = null; canvas = null; ctx = null;
     }
   }
@@ -701,8 +849,10 @@
       if (key in settings && typeof obj.newValue === typeof DEFAULTS[key]) settings[key] = obj.newValue;
     }
     if (!settings.enabled) liveTracks = [];
+    if(changes.rendererMode)switchRenderer();
     if (changes.fontSize) resize();
-    if (changes.color || changes.colorMode || changes.fontSize || changes.opacity || changes.preserveLineBreaks || changes.translateComments || changes.translateLanguage || changes.autoShrink || changes.hideTimestamps) clearSprites();
+    if (changes.fontSize || changes.preserveLineBreaks || changes.translateComments || changes.translateLanguage || changes.autoShrink || changes.hideTimestamps ||
+        (!webgl && (changes.color || changes.colorMode))) clearSprites();
     if(changes.translateLanguage || changes.translateComments) resetTranslationSession();
     if (changes.fontSize || changes.preserveLineBreaks || changes.hideTimestamps) textWidths.clear();
     if ((changes.density || changes.fontSize || changes.speed || changes.speedMode || changes.hideReplies || changes.preserveLineBreaks || changes.hideFromLines || changes.featuredPercent || changes.translateComments || changes.translateLanguage || changes.autoShrink || changes.halfLineOverlap || changes.hideTimestamps) && records.length) queueRebuild(true);

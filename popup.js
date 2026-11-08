@@ -1,7 +1,7 @@
 'use strict';
 const DEFAULTS = {enabled:true,fontSize:24,speed:1,density:5,opacity:.92,
   color:'#ffffff',colorMode:'single',speedMode:'fixed',language:'auto',hideReplies:false,preserveLineBreaks:false,hideFromLines:0,featuredPercent:0,
-  translateComments:false,translateLanguage:'ja',autoShrink:true,halfLineOverlap:true,hideTimestamps:false};
+  translateComments:false,translateLanguage:'ja',autoShrink:true,halfLineOverlap:true,hideTimestamps:false,rendererMode:'auto',fpsLimit:0};
 const I18N=globalThis.YDLI18N;
 const settings={...DEFAULTS};
 let lastStatus=null, activeTabId=null, statusTimer=null, statusRequest=0;
@@ -64,7 +64,7 @@ chrome.storage.local.get(DEFAULTS,stored=>{
     const input=document.getElementById(key);
     if(!input)continue;
     input.addEventListener(input.type==='checkbox'||input.type==='color'||input.tagName==='SELECT'?'change':'input',()=>{
-      const updated=input.type==='checkbox'?input.checked:input.type==='range'?Number(input.value):input.value;
+      const updated=input.type==='checkbox'?input.checked:(input.type==='range'||key==='fpsLimit')?Number(input.value):input.value;
       settings[key]=updated;
       chrome.storage.local.set({[key]:updated});
       updateInput(key);

@@ -266,6 +266,9 @@
     const lifetime=Number(opts.lifetime)||3.8;
     const gap=Number.isFinite(opts.gap)?opts.gap:4;
     let dropped=0;
+    // Retain only concurrently visible featured comments. The old implementation
+    // scanned every past track for every new event (quadratic on large YCS loads).
+    let active=tracks.filter(t=>t.end>0);
     for(const event of events) {
       const font=Math.ceil((event.fontsize || opts.fontsize || 24)*1.5);
       const lines=String(event.text).split('\n').length;
@@ -275,16 +278,18 @@
       if(!Number.isFinite(width) || width>viewportWidth*.92 || height>viewportHeight-3 ||
         (Number.isFinite(duration) && duration>0 && end>duration-.4)) {dropped++;continue;}
       let bottomOffset=0;
-      const active=tracks.filter(t=>t.time<end && start<t.end)
-        .sort((a,b)=>(a.bottomOffset||0)-(b.bottomOffset||0));
+      active=active.filter(t=>t.end>start);
+      active.sort((a,b)=>(a.bottomOffset||0)-(b.bottomOffset||0));
       for(const prev of active) {
+        if(prev.time>=end)continue;
         const from=prev.bottomOffset||0;
         if(bottomOffset+height+gap<=from) break;
         bottomOffset=Math.max(bottomOffset,from+(prev.displayHeight||0)+gap);
       }
       if(bottomOffset+height+2>viewportHeight) {dropped++;continue;}
-      tracks.push({...event,displayMode:'center',time:start,end,width,fontsize:font,
-        bottomOffset,displayHeight:height});
+      const item={...event,displayMode:'center',time:start,end,width,fontsize:font,
+        bottomOffset,displayHeight:height};
+      tracks.push(item);active.push(item);
     }
     tracks.sort((a,b)=>a.time-b.time||likeRank(a,b));
     return {tracks,dropped};
