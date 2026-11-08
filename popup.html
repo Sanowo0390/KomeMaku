@@ -31,6 +31,7 @@
     <label class="toggleline" for="preserveLineBreaks"><span data-i18n="preserveLineBreaks">コメントの改行を維持</span><input type="checkbox" id="preserveLineBreaks"></label>
     <div class="setting"><label for="hideFromLines"><span data-i18n="hideFromLines">この行数以上を非表示</span> <output id="hideFromLinesOut"></output></label><input id="hideFromLines" type="range" min="0" max="10" step="1"><p class="hint" data-i18n="lineHint">0で制限なし。改行表示OFFでも元の行数で判定します。</p></div>
     <div class="setting"><label for="featuredPercent"><span data-i18n="featuredPercent">画面下端に拡大表示する人気コメント</span> <output id="featuredPercentOut"></output></label><input id="featuredPercent" type="range" min="0" max="30" step="1"><p class="hint" data-i18n="featuredHint">いいね数上位の指定割合を下端に1.5倍で表示。複数同時表示可能（0%で無効）。</p></div>
+    <div class="setting"><label for="featuredScrollFromLines"><span data-i18n="featuredScrollFromLines">何行以上の人気コメントを通常表示にする</span> <output id="featuredScrollFromLinesOut"></output></label><input id="featuredScrollFromLines" type="range" min="0" max="10" step="1"><p class="hint" data-i18n="featuredScrollHint">0で制限なし。設定行数以上は中央固定せず通常の弾幕として流します。元の行数で判定します。</p></div>
     <section class="import-area">
       <strong data-i18n="importTitle">YCS Continued と連携</strong>
       <p data-i18n="importDesc">YCSの「Load all」で取得したコメントを取り込みます。</p>

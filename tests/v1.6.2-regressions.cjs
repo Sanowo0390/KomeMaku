@@ -7,7 +7,7 @@ const root=path.resolve(__dirname,'..');
 const L=require('../logic.js');
 const I18N=require('../i18n.js');
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json')));
-assert.equal(manifest.version,'1.7.1');
+assert.equal(manifest.version,'1.7.2');
 
 // Remove timestamp markers without changing the comment's playback placement.
 assert.equal(L.hideTimestamps('ここ好き 0:35、ここも 1:20\n次の行 02:00:10'), 'ここ好き 、ここも\n次の行');
@@ -118,6 +118,19 @@ assert.equal(centerLines.length,2,JSON.stringify(renders));
 assert.equal(centerLines[0].x,centerLines[1].x,'multiline center text must center every line');
 assert.equal(centerLines[0].x,480);
 assert.ok(centerLines[1].y>500,`last centered line should touch bottom edge, y=${centerLines[1].y}`);
+// When original comment has two or more lines, the new option makes it
+// scroll normally even though it remains the most-liked comment.
+storageHandler({featuredScrollFromLines:{newValue:2}},'local');
+renders=[];video.currentTime=2.6;raf(250);
+const movingLines=renders.filter(x=>['first line','second line'].includes(x.text));
+assert.equal(movingLines.length,2,JSON.stringify(renders));
+assert.ok(movingLines.every(x=>x.x!==480),'multiline featured text must scroll, not stay centered');
+// Restoring 0 disables the rule immediately, without reopening the popup.
+storageHandler({featuredScrollFromLines:{newValue:0}},'local');
+renders=[];video.currentTime=2.7;raf(300);
+const centeredAgain=renders.filter(x=>['first line','second line'].includes(x.text));
+assert.equal(centeredAgain.length,2,JSON.stringify(renders));
+assert.ok(centeredAgain.every(x=>x.x===480),'0 must restore central placement immediately');
 for(const lang of ['ja','en','zh-CN','zh-TW'])assert.ok(I18N.translate(lang,'hideTimestamps'));
 assert.match(fs.readFileSync(path.join(root,'popup.html'),'utf8'),/id="hideTimestamps"/);
 assert.match(fs.readFileSync(path.join(root,'popup.js'),'utf8'),/YDL_STATUS_UPDATE/);

@@ -5,7 +5,7 @@ const root=path.resolve(__dirname,'..');
 const logic=require('../logic.js');
 const I18N=require('../i18n.js');
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json')));
-assert.equal(manifest.version,'1.7.1');
+assert.equal(manifest.version,'1.7.2');
 assert.ok(manifest.content_scripts.filter(x=>x.world==='ISOLATED').some(x=>x.matches.includes('https://www.youtube.com/*')&&x.css.includes('player.css')&&x.js.includes('i18n.js')));
 for(const [language,expected] of [['ja','ja'],['en','en'],['zh-Hans-CN','zh-CN'],['zh-TW','zh-TW'],['zh-HK','zh-TW']]){
   assert.equal(I18N.detect('auto',language),expected);

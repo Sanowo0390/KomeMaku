@@ -3,12 +3,12 @@
   if (window.__YDL_CONTENT_INSTALLED__) return;
   window.__YDL_CONTENT_INSTALLED__ = true;
 
-  const {normalizeText, cleanOriginalText, hideTimestamps, prepareText, parseLikeCount, buildSchedule, lowerBound, scrollTravelSeconds, createTrack, planFeatured, planTracks, mergeStableTracks, selectFeatured, visibleTracks, trackX, commentColor, speedFactor} = globalThis.YDLLogic;
+  const {normalizeText, cleanOriginalText, hideTimestamps, prepareText, parseLikeCount, buildSchedule, lowerBound, scrollTravelSeconds, createTrack, planFeatured, planTracks, mergeStableTracks, selectFeatured, shouldScrollFeatured, visibleTracks, trackX, commentColor, speedFactor} = globalThis.YDLLogic;
   const I18N = globalThis.YDLI18N;
   const t = (key,...args) => I18N.translate(I18N.detect(settings.language),key,...args);
   const DEFAULTS = Object.freeze({enabled:true,fontSize:24,opacity:0.92,speed:1,density:5,
     color:'#ffffff',colorMode:'single',speedMode:'fixed',language:'auto',
-    hideReplies:false,preserveLineBreaks:false,hideFromLines:0,featuredPercent:0,
+    hideReplies:false,preserveLineBreaks:false,hideFromLines:0,featuredPercent:0,featuredScrollFromLines:0,
     translateComments:false,translateLanguage:'ja',autoShrink:true,halfLineOverlap:true,hideTimestamps:false,rendererMode:'auto',fpsLimit:0});
   const settings = {...DEFAULTS};
   const records = [];
@@ -346,35 +346,38 @@
       if(settings.hideFromLines>0 && sourceLineCount>=settings.hideFromLines)continue;
       if(!prepared) continue;
       const font=effectiveFontSize(m.fontsize,prepared.lineCount,m.h,settings.autoShrink);
-      eligible.push({...record,...prepared,scheduleText:record.originalText,fontsize:font,
+      eligible.push({...record,...prepared,sourceLineCount,scheduleText:record.originalText,fontsize:font,
         speedFactor:speedFactor(record.id,settings.speedMode)});
     }
     const travelFor=record=>scrollTravelSeconds(textWidth(record.text,record.fontsize||m.fontsize),m.w,settings.speed*record.speedFactor);
     const schedule=buildSchedule(eligible,duration,settings.density,{travelFor});
     untimed=schedule.generic;
     const features=selectFeatured(schedule.events,settings.featuredPercent);
-    const scrollingEvents=schedule.events.filter(event=>!features.has(String(event.id)));
     const opts={viewportWidth:m.w,lanes:m.lanes,duration,speed:settings.speed,
       measureText:(text,font)=>textWidth(text,font||m.fontsize),finishMargin:.6,gap:Math.max(24,m.fontsize),halfLineOverlap:settings.halfLineOverlap};
     const mediaTime=currentVideo?.currentTime || 0;
-    // On incremental YCS updates, retain everything that has already begun.
-    // Reassign only future slots. Settings/resize changes intentionally reflow.
+    // Pin already-started comments before deciding where future ones go.
+    const pinnedCenter=!force && lastRebuildAt
+      ? centerTracks.filter(item=>item.time<=mediaTime+1.2):[];
+    const pinnedScroll=!force && lastRebuildAt
+      ? renderTracks.filter(item=>item.time<=mediaTime+1.2):[];
+    const pinnedIds=new Set([...pinnedCenter,...pinnedScroll].map(item=>String(item.id)));
+    const featuredEvents=schedule.events.filter(event=>features.has(String(event.id)) &&
+      !shouldScrollFeatured(event,settings.featuredScrollFromLines) && !pinnedIds.has(String(event.id)))
+      .filter(event=>force || !lastRebuildAt || event.time>mediaTime+1.2)
+      .sort((a,b)=>a.time-b.time);
+    // Decide central placement first. Failed central candidates fall back to
+    // scrolling; neither the line threshold nor a full bottom stack hides them.
+    centerTracks=planFeatured(featuredEvents,{fixedTracks:pinnedCenter,viewportHeight:m.h,
+      viewportWidth:m.w,duration,fontsize:m.fontsize,measureText:textWidth,gap:5}).tracks;
+    const centeredIds=new Set(centerTracks.map(item=>String(item.id)));
+    const scrollingEvents=schedule.events.filter(event=>!centeredIds.has(String(event.id)));
+    // Retain started scrolling comments during incremental YCS updates.
     const layout=!force && lastRebuildAt && renderTracks.length && Number.isFinite(duration)
       ? mergeStableTracks(renderTracks,scrollingEvents,opts,mediaTime,1.2)
       : planTracks(scrollingEvents,opts);
     renderTracks=layout.tracks;
     maxTravel=layout.maxTravel;
-    // Stack popular comments from the actual bottom edge. Multiple comments
-    // may appear simultaneously in separate bottom-up rows.
-    const pinnedCenter=!force && lastRebuildAt
-      ? centerTracks.filter(item=>item.time<=mediaTime+1.2):[];
-    const pinnedIds=new Set([...pinnedCenter,...renderTracks.filter(item=>item.time<=mediaTime+1.2)]
-      .map(item=>String(item.id)));
-    const featuredEvents=schedule.events.filter(event=>features.has(String(event.id)) && !pinnedIds.has(String(event.id)))
-      .filter(event=>force || !lastRebuildAt || event.time>mediaTime+1.2)
-      .sort((a,b)=>a.time-b.time);
-    centerTracks=planFeatured(featuredEvents,{fixedTracks:pinnedCenter,viewportHeight:m.h,
-      viewportWidth:m.w,duration,fontsize:m.fontsize,measureText:textWidth,gap:5}).tracks;
     selectedCount=renderTracks.length+centerTracks.length+untimed.length;
     droppedCount=Math.max(0,records.length-selectedCount);
     lastRebuildAt=globalThis.performance?.now?.() ?? Date.now();invalidated=true;
@@ -655,7 +658,7 @@
     ['colorMode','select',['single','random']], ['color','color'],
     ['speedMode','select',['fixed','random']], ['hideReplies','checkbox'],
     ['preserveLineBreaks','checkbox'], ['hideFromLines','range',0,10,1],
-    ['featuredPercent','range',0,30,1],
+    ['featuredPercent','range',0,30,1],['featuredScrollFromLines','range',0,10,1],
     ['translateComments','checkbox'],['translateLanguage','select',['ja','en','zh-CN','zh-TW','ko','es','fr','de']],
     ['autoShrink','checkbox'],['halfLineOverlap','checkbox'],['hideTimestamps','checkbox'],
     ['language','select',['auto','ja','en','zh-CN','zh-TW']]
@@ -672,7 +675,7 @@
     if (key === 'density') return Number(value)===11?t('unlimited'):`${value}/10`;
     if (key === 'opacity') return `${Math.round(Number(value)*100)}%`;
     if (key === 'featuredPercent') return `${value}%`;
-    if (key === 'hideFromLines') return Number(value)===0?t('unlimited'):`${value}${t('linesOrMore')}`;
+    if (key === 'hideFromLines' || key === 'featuredScrollFromLines') return Number(value)===0?t('unlimited'):`${value}${t('linesOrMore')}`;
     return String(value);
   }
   function chooseLabel(key,value) {
@@ -855,7 +858,7 @@
         (!webgl && (changes.color || changes.colorMode))) clearSprites();
     if(changes.translateLanguage || changes.translateComments) resetTranslationSession();
     if (changes.fontSize || changes.preserveLineBreaks || changes.hideTimestamps) textWidths.clear();
-    if ((changes.density || changes.fontSize || changes.speed || changes.speedMode || changes.hideReplies || changes.preserveLineBreaks || changes.hideFromLines || changes.featuredPercent || changes.translateComments || changes.translateLanguage || changes.autoShrink || changes.halfLineOverlap || changes.hideTimestamps) && records.length) queueRebuild(true);
+    if ((changes.density || changes.fontSize || changes.speed || changes.speedMode || changes.hideReplies || changes.preserveLineBreaks || changes.hideFromLines || changes.featuredPercent || changes.featuredScrollFromLines || changes.translateComments || changes.translateLanguage || changes.autoShrink || changes.halfLineOverlap || changes.hideTimestamps) && records.length) queueRebuild(true);
     invalidated=true;
     updatePlayerControls();
     if (settings.enabled) {

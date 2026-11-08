@@ -36,6 +36,15 @@
     const count=Math.ceil(events.length*Math.min(100,percent)/100);
     return new Set(events.filter(c => parseLikeCount(c.likes)>0).sort(likeRank).slice(0,count).map(c=>String(c.id)));
   }
+  // Keep the ranking percentage unchanged, but display long featured comments
+  // using regular scrolling lanes. Match the existing line filter: original
+  // source line count, even if line breaks are collapsed for rendering.
+  function shouldScrollFeatured(event, fromLines=0) {
+    const threshold=Math.floor(Number(fromLines)||0);
+    if(threshold<=0)return false;
+    const originalLines=Number(event.sourceLineCount) || lineCount(event.originalText || event.scheduleText || event.text);
+    return originalLines>=threshold;
+  }
   // Prevent YCS incremental loads from teleporting already-started text.
   // Existing tracks at/before the media-time fence remain immutable.
   function mergeStableTracks(previous, candidates, opts, currentTime, fence=1) {
@@ -266,6 +275,7 @@
     const lifetime=Number(opts.lifetime)||3.8;
     const gap=Number.isFinite(opts.gap)?opts.gap:4;
     let dropped=0;
+    const rejected=[];
     // Retain only concurrently visible featured comments. The old implementation
     // scanned every past track for every new event (quadratic on large YCS loads).
     let active=tracks.filter(t=>t.end>0);
@@ -276,7 +286,9 @@
       const width=Number(opts.measureText(event.text,font));
       const start=Math.max(0,Number(event.time)||0), end=start+lifetime;
       if(!Number.isFinite(width) || width>viewportWidth*.92 || height>viewportHeight-3 ||
-        (Number.isFinite(duration) && duration>0 && end>duration-.4)) {dropped++;continue;}
+        (Number.isFinite(duration) && duration>0 && end>duration-.4)) {
+        dropped++;rejected.push(event);continue;
+      }
       let bottomOffset=0;
       active=active.filter(t=>t.end>start);
       active.sort((a,b)=>(a.bottomOffset||0)-(b.bottomOffset||0));
@@ -286,13 +298,15 @@
         if(bottomOffset+height+gap<=from) break;
         bottomOffset=Math.max(bottomOffset,from+(prev.displayHeight||0)+gap);
       }
-      if(bottomOffset+height+2>viewportHeight) {dropped++;continue;}
+      if(bottomOffset+height+2>viewportHeight) {dropped++;rejected.push(event);continue;}
       const item={...event,displayMode:'center',time:start,end,width,fontsize:font,
         bottomOffset,displayHeight:height};
       tracks.push(item);active.push(item);
     }
     tracks.sort((a,b)=>a.time-b.time||likeRank(a,b));
-    return {tracks,dropped};
+    // Rejected central comments are eligible for regular scrolling instead
+    // of disappearing after their featured selection.
+    return {tracks,dropped,rejected};
   }
   // Feed all events in planned start-time order. For equal timestamps the
   // existing schedule already uses descending likes, so the lowest-liked
@@ -344,7 +358,7 @@
   function trackX(track, videoTime, viewportWidth) {
     return viewportWidth + 10 - track.velocity * (videoTime - track.time);
   }
-  const api = Object.freeze({normalizeText, cleanOriginalText, hideTimestamps, prepareText, lineCount, selectFeatured, mergeStableTracks, parseTimes, lowerBound, hash, parseLikeCount, likeRank, selectByLikes, commentColor, speedFactor, scrollTravelSeconds, buildSchedule, scrollingSpeed, safeFollowingStart, createTrack, planFeatured, planTracks, visibleTracks, trackX});
+  const api = Object.freeze({normalizeText, cleanOriginalText, hideTimestamps, prepareText, lineCount, selectFeatured, shouldScrollFeatured, mergeStableTracks, parseTimes, lowerBound, hash, parseLikeCount, likeRank, selectByLikes, commentColor, speedFactor, scrollTravelSeconds, buildSchedule, scrollingSpeed, safeFollowingStart, createTrack, planFeatured, planTracks, visibleTracks, trackX});
   globalThis.YDLLogic = api;
   if (typeof module === "object" && module.exports) module.exports = api;
 })();

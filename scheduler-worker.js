@@ -39,27 +39,30 @@ function compute(message){
       const prepared=L.prepareText(text,settings.preserveLineBreaks,0);
       if(settings.hideFromLines>0&&record.originalText.split('\n').length>=settings.hideFromLines)continue;
       if(!prepared)continue;
+      const sourceLineCount=record.originalText.split('\n').length;
       const font=effectiveFontSize(m.fontsize,prepared.lineCount,m.h,settings.autoShrink);
-      eligible.push({...record,...prepared,scheduleText:record.originalText,fontsize:font,
+      eligible.push({...record,...prepared,sourceLineCount,scheduleText:record.originalText,fontsize:font,
         speedFactor:L.speedFactor(record.id,settings.speedMode)});
     }
     const travelFor=r=>L.scrollTravelSeconds(measureText(r.text,r.fontsize||m.fontsize),m.w,settings.speed*r.speedFactor);
     const schedule=L.buildSchedule(eligible,duration,settings.density,{travelFor});
     generic=schedule.generic;
     const features=L.selectFeatured(schedule.events,settings.featuredPercent);
-    const scrolling=schedule.events.filter(e=>!features.has(String(e.id)));
     const opts={viewportWidth:m.w,lanes:m.lanes,duration,speed:settings.speed,
       measureText:(text,font)=>measureText(text,font||m.fontsize),finishMargin:.6,
       gap:Math.max(24,m.fontsize),halfLineOverlap:settings.halfLineOverlap};
     const previous=force?[]:allTracks.filter(t=>t.time<=now+1.2&&t.end>=now-5);
-    const result=previous.length?L.mergeStableTracks(previous,scrolling,opts,now,1.2):L.planTracks(scrolling,opts);
     const previousCenter=force?[]:allCenter.filter(t=>t.time<=now+1.2&&t.end>=now-5);
     const fixedIds=new Set([...previous,...previousCenter].map(t=>String(t.id)));
-    const featured=schedule.events.filter(e=>features.has(String(e.id))&&!fixedIds.has(String(e.id)))
+    const featured=schedule.events.filter(e=>features.has(String(e.id)) &&
+      !L.shouldScrollFeatured(e,settings.featuredScrollFromLines) && !fixedIds.has(String(e.id)))
       .filter(e=>force||e.time>now+1.2).sort((a,b)=>a.time-b.time);
     const centers=L.planFeatured(featured,{fixedTracks:previousCenter,
       viewportHeight:m.h,viewportWidth:m.w,duration,fontsize:m.fontsize,
       measureText,gap:5});
+    const centeredIds=new Set(centers.tracks.map(e=>String(e.id)));
+    const scrolling=schedule.events.filter(e=>!centeredIds.has(String(e.id)));
+    const result=previous.length?L.mergeStableTracks(previous,scrolling,opts,now,1.2):L.planTracks(scrolling,opts);
     allTracks=result.tracks;allCenter=centers.tracks;
     maxTravel=result.maxTravel;
     selectedCount=allTracks.length+allCenter.length+generic.length;
