@@ -34,7 +34,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node -e 'const m=require("./manifest.json"); if(m.manifest_version!==3 || m.version!=="1.9.0") process.exit(1)'
+          node -e 'const m=require("./manifest.json"); if(m.manifest_version!==3 || m.version!=="1.9.1") process.exit(1)'
           for file in *.js tests/*.cjs; do node --check "$file"; done
       - name: Run unit and integration simulations
         shell: bash
@@ -54,7 +54,7 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add icons/icon16.png icons/icon32.png icons/icon48.png icons/icon128.png
-            git commit -m "assets: generate v1.9.0 mint brand icons from SVG"
+            git commit -m "assets: generate v1.9.1 flowing-comment icons from SVG"
             git push origin HEAD:main
           fi
       - name: Stage extension for Chrome and Edge

@@ -1,18 +1,42 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="KomeMaku">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="KomeMaku - flowing video comments">
   <defs>
-    <linearGradient id="border" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#80ffdc"/><stop offset=".56" stop-color="#2cf3ba"/><stop offset="1" stop-color="#00dcab"/></linearGradient>
-    <linearGradient id="dark" x1="0" y1="0" x2=".8" y2="1"><stop offset="0" stop-color="#15505a"/><stop offset=".43" stop-color="#062e38"/><stop offset="1" stop-color="#00282f"/></linearGradient>
-    <linearGradient id="flow" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#96ffe3"/><stop offset=".52" stop-color="#32efbc"/><stop offset="1" stop-color="#06dbaa"/></linearGradient>
+    <linearGradient id="border" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#80ffdc"/>
+      <stop offset=".56" stop-color="#2cf3ba"/>
+      <stop offset="1" stop-color="#00dcab"/>
+    </linearGradient>
+    <linearGradient id="dark" x1="0" y1="0" x2=".8" y2="1">
+      <stop offset="0" stop-color="#15505a"/>
+      <stop offset=".43" stop-color="#062e38"/>
+      <stop offset="1" stop-color="#00282f"/>
+    </linearGradient>
+    <linearGradient id="flow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#96ffe3"/>
+      <stop offset=".52" stop-color="#32efbc"/>
+      <stop offset="1" stop-color="#06dbaa"/>
+    </linearGradient>
+    <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f8fffd"/>
+      <stop offset=".72" stop-color="#a8ffed"/>
+      <stop offset="1" stop-color="#32efbc" stop-opacity=".1"/>
+    </linearGradient>
   </defs>
-  <!-- Thick mint outer border matches the chosen icon reference. -->
   <rect x="1" y="1" width="126" height="126" rx="31" fill="url(#border)"/>
   <rect x="8" y="8" width="112" height="112" rx="26" fill="url(#dark)"/>
   <path d="M8 44Q9 8 43 8H63L8 68Z" fill="#84fff0" opacity=".055"/>
-  <path d="M33 84C18 87 13 94 21 98C43 112 92 94 107 85C126 73 110 67 101 68" fill="none" stroke="url(#flow)" stroke-width="7.5" stroke-linecap="round"/>
-  <path d="M70 43H46Q31 43 31 58V78Q31 94 46 94H83" fill="none" stroke="#f8fffd" stroke-width="8.3" stroke-linejoin="round" stroke-linecap="round"/>
-  <path d="M98 56V78" fill="none" stroke="#f8fffd" stroke-width="8.2" stroke-linecap="butt"/>
-  <path d="M57 57Q57 54 60 56L78 67Q80 68.5 78 70L60 81Q57 83 57 80Z" fill="#f8fffd"/>
-  <path d="M86 23H95Q111 23 111 39Q111 54 95 54H82L74 60L76 50Q71 45 71 39Q71 23 86 23Z" fill="#fbfffe"/>
-  <circle cx="83" cy="39" r="2.35" fill="#03323b"/><circle cx="92" cy="39" r="2.35" fill="#03323b"/><circle cx="101" cy="39" r="2.35" fill="#03323b"/>
-  <path d="M93 91C84 92 78 83 77 77C85 76 93 81 94 87C96 80 104 77 111 78C110 89 102 93 96 93V100Q96 104 93 104Q90 104 90 100V91Z" fill="url(#border)"/>
+  <!-- Elliptical tail suggests the movement of comments around the video. -->
+  <path d="M34 91C16 91 13 100 23 104C44 113 97 97 109 85C121 74 114 70 104 70" fill="none" stroke="url(#flow)" stroke-width="6" stroke-linecap="round"/>
+  <!-- More generous video frame, with slight top-right occlusion by the speech bubble. -->
+  <path d="M66 43H44C32 43 26 50 26 62V83C26 96 33 101 45 101H87C100 101 107 95 107 83V61" fill="none" stroke="#f8fffd" stroke-width="8.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Slightly smaller play triangle than the prior icon. -->
+  <path d="M53 58Q53 55 56 56.5L73 67Q76 69 73 71L56 81.5Q53 83 53 80Z" fill="#f8fffd"/>
+  <!-- Larger speech bubble is the central comment symbol. -->
+  <path d="M82 19H97C110 19 117 28 117 40C117 52 109 59 96 59H85L71 68L75 54C69 50 66 45 66 39C66 27 72 19 82 19Z" fill="#fbfffe"/>
+  <circle cx="81" cy="39" r="3" fill="#03323b"/>
+  <circle cx="93" cy="39" r="3" fill="#03323b"/>
+  <circle cx="105" cy="39" r="3" fill="#03323b"/>
+  <!-- Three short text trails: horizontal rows read like flying comments. -->
+  <path d="M24 31H48" stroke="url(#fade)" stroke-width="4.7" stroke-linecap="round"/>
+  <path d="M15 39H49" stroke="url(#fade)" stroke-width="5.3" stroke-linecap="round"/>
+  <path d="M44 87H82" stroke="url(#fade)" stroke-width="4.6" stroke-linecap="round"/>
 </svg>

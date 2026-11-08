@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const root=path.resolve(__dirname,'..');
 const manifest=require('../manifest.json');
-assert.equal(manifest.version,'1.9.0');
+assert.equal(manifest.version,'1.9.1');
 assert.equal(manifest.manifest_version,3);
 const signature=Buffer.from([137,80,78,71,13,10,26,10]);
 for(const px of [16,32,48,128]){
@@ -23,6 +23,18 @@ for(const name of ['icon.svg','icon-small.svg']){
   assert.match(xml,/<svg\b/);
   assert.match(xml,/viewBox="0 0 128 128"/);
 }
+// Guard the requested v1.9.1 visual identity.
+const largeSvg=fs.readFileSync(path.join(root,'icons/icon.svg'),'utf8');
+const smallSvg=fs.readFileSync(path.join(root,'icons/icon-small.svg'),'utf8');
+for(const artwork of [largeSvg,smallSvg]){
+  assert.doesNotMatch(artwork, /sprout|leaf|双葉|M93 91C84/i, 'No twin-leaf motif');
+  assert.match(artwork, /<circle cx=/, 'Larger dotted speech bubble');
+  assert.match(artwork, /stroke="#f8fffd"/, 'Large video frame');
+  assert.match(artwork, /#80ffdc/, 'Keep current mint border');
+}
+assert.match(largeSvg, /Three short text trails/, 'Flowing comment streaks are present');
+assert.match(smallSvg, /simplified for 16px/, 'Readable small toolbar icon');
+
 assert.notDeepEqual(
  fs.readFileSync(path.join(root,'icons/icon16.png')),
  fs.readFileSync(path.join(root,'icons/icon32.png')),

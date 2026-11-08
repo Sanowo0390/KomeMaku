@@ -28,5 +28,5 @@ assert.match(read('options.js'),/lineSpacing:\[\.7,2,\.05\]/);
 assert.match(read('popup.html'),/id=\"lineSpacing\"/);
 assert.match(read('content.js'),/changes\.lineSpacing/);
 for(const key of ['ja','en','zh-CN','zh-TW'])assert.ok(read('i18n.js').includes('lineSpacing:'),'all locales expose line spacing');
-assert.equal(JSON.parse(read('manifest.json')).version,'1.9.0');
+assert.equal(JSON.parse(read('manifest.json')).version,'1.9.1');
 console.log('PASS: line spacing 70-200%, multi-line center layout, WebGL/Worker/UI defaults and synchronization');
