@@ -25,10 +25,10 @@ const chrome={tabs:{query:async()=>[{id:42,url:'https://www.youtube.com/watch?v=
   storage:{local:{get:(defaults,cb)=>cb(defaults),set:x=>writes.push(x)},
     onChanged:{addListener:fn=>onStorageChange=fn}},
   runtime:{onMessage:{addListener:fn=>onRuntimeMessage=fn}}};
-const sandbox={chrome,document:{documentElement:{},querySelectorAll:()=>[],getElementById},
+const sandbox={chrome,document:{documentElement:{},querySelectorAll:()=>[],querySelector:()=>null,getElementById},
   globalThis:null,console,setTimeout,clearTimeout,Promise};
 sandbox.globalThis=sandbox;
-for(const f of ['i18n.js','ycs-parser.js','popup.js'])
+for(const f of ['i18n.js','ycs-parser.js','settings-groups.js','popup.js'])
   vm.runInNewContext(fs.readFileSync(path.join(root,f),'utf8'),sandbox);
 (async()=>{
   await new Promise(done=>setTimeout(done,10));

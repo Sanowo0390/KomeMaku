@@ -3,7 +3,7 @@
   "name": "KomeMaku - YouTube Comment Danmaku",
   "short_name": "KomeMaku",
   "description": "YouTubeのコメントを動画上に弾幕表示。YCS Continued連携、4言語、色・速度・サイズ設定、再生位置同期に対応。",
-  "version": "1.8.6",
+  "version": "1.8.7",
   "minimum_chrome_version": "110",
   "permissions": [
     "storage",

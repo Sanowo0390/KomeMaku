@@ -113,7 +113,7 @@ assert.ok(renderer.glyphs.size>glyphsNoOutline,'outline style needs an independe
 renderer.destroy();global.OffscreenCanvas=priorOffscreenCanvas;
 
 const manifest=JSON.parse(read('manifest.json'));
-assert.equal(manifest.version,'1.8.6');
+assert.equal(manifest.version,'1.8.7');
 for(const file of ['content.js','scheduler-worker.js','options.js','popup.js']){
  for(const key of ['fontFamily','outlineEnabled','outlineStrength'])
    assert.match(read(file),new RegExp(key),`${file} missing ${key}`);

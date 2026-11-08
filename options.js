@@ -15,14 +15,7 @@ const pageLabels={
  'zh-CN':{brand:'设置中心',nav:'设置分类',breadcrumb:'设置 / 所有选项',eyebrow:'KOMEMAKU CONTROL CENTER',title:'自定义你的弹幕。',description:'在这里调整频率、筛选顺序、热门弹幕、翻译和渲染性能。更改会自动保存并应用到 YouTube。',search:'搜索设置（例如：FPS、评论、翻译）',saved:'已保存',error:'无法保存设置',reset:'恢复默认',resetTitle:'恢复初始设置',resetHint:'仅重置 KomeMaku 设置，不影响评论数据。',confirm:'确定将所有设置恢复为默认值吗？',resetDone:'已恢复默认',none:'未找到匹配设置',footer:'此页面内置于 KomeMaku 扩展程序，无需外部网站或账户。'},
  'zh-TW':{brand:'設定中心',nav:'設定分類',breadcrumb:'設定 / 所有選項',eyebrow:'KOMEMAKU CONTROL CENTER',title:'打造你的彈幕。',description:'在此調整顯示頻率、優先順序、熱門留言、翻譯及繪製效能。變更會自動儲存並套用到 YouTube。',search:'搜尋設定（例如：FPS、留言、翻譯）',saved:'已儲存',error:'無法儲存設定',reset:'恢復預設值',resetTitle:'恢復預設設定',resetHint:'僅重設 KomeMaku 設定，不影響留言資料。',confirm:'確定要將全部設定恢復為預設值嗎？',resetDone:'設定已重設',none:'沒有符合的設定',footer:'此頁面內建於 KomeMaku 擴充功能，不需外部網站或帳號。'}
 };
-const groups=[
- {id:'general',icon:'⚙',title:['基本設定','General','基本设置','基本設定'],subtitle:['弾幕の有効化と言語','Turn on danmaku and choose language','弹幕开关与界面语言','彈幕開關與介面語言'],keys:['enabled','language']},
- {id:'selection',icon:'▤',title:['表示・優先順位','Selection','显示与优先级','顯示與優先順序'],subtitle:['大量コメントをどれから表示するか','Choose which comments win when space runs out','决定优先显示哪些评论','決定優先顯示哪些留言'],keys:['selectionOrder','density','hideReplies','hideFromLines','preserveLineBreaks','hideTimestamps']},
- {id:'featured',icon:'★',title:['人気コメント','Featured comments','热门评论','熱門留言'],subtitle:['画面下端に拡大表示するコメント','Control highlighted comments at bottom','底部高赞弹幕','底部熱門留言'],keys:['featuredPercent','featuredScrollFromLines']},
- {id:'appearance',icon:'◉',title:['見た目・動き','Appearance','外观与动画','外觀與動態'],subtitle:['文字、流れる速度、表示の重なり','Text, colors, movement and spacing','文字、颜色、速度与重叠','文字、色彩、速度與重疊'],keys:['fontSize','autoFontScale','fontFamily','outlineEnabled','outlineStrength','outlineOpacity','lineSpacing','speed','opacity','colorMode','color','speedMode','autoShrink','halfLineOverlap']},
- {id:'performance',icon:'⚡',title:['パフォーマンス','Performance','性能','效能'],subtitle:['描画エンジンとFPSの設定','Renderer and FPS settings','渲染引擎与帧率','繪製引擎與FPS'],keys:['rendererMode','fpsLimit']},
- {id:'translation',icon:'文',title:['翻訳','Translation','翻译','翻譯'],subtitle:['コメントの翻訳を有効化','Translate comments only when enabled','开启后翻译评论','啟用時翻譯留言'],keys:['translateComments','translateLanguage']}
-];
+const groups=globalThis.KomeMakuSettingsGroups;
 const choices={
  fontFamily:[['system','fontSystem'],['gothic','fontGothic'],['mincho','fontMincho'],['rounded','fontRounded'],['monospace','fontMonospace']],
  language:[['auto','auto'],['ja','日本語'],['en','English'],['zh-CN','简体中文'],['zh-TW','繁體中文']],

@@ -10,6 +10,13 @@ function translateUi(){
   document.documentElement.lang=I18N.detect(settings.language);
   for(const node of document.querySelectorAll('[data-i18n]')) node.textContent=t(node.dataset.i18n);
   renderStatus(lastStatus);
+  const lang=I18N.detect(settings.language);
+  const idx=({ja:0,en:1,'zh-CN':2,'zh-TW':3})[lang]??0;
+  for(const group of globalThis.KomeMakuSettingsGroups){
+    const details=document.querySelector(`.setting-category[data-category="${group.id}"]`);
+    const label=details?.querySelector('[data-category-title]');
+    if(label)label.textContent=group.title[idx];
+  }
 }
 function displayValue(key,value){
   return key==='fontSize'?`${value}px`:(key==='lineSpacing'||key==='outlineStrength'||key==='outlineOpacity')?`${Math.round(Number(value)*100)}%`:key==='speed'?`${Number(value).toFixed(1)}×`:
@@ -92,6 +99,39 @@ chrome.storage.onChanged.addListener((changes,area)=>{
     }
   }
 });
+// Native <details> provides keyboard and screen-reader friendly independent folds.
+// Store the UI state separately from the video preferences, so changing a setting
+// never resets expanded sections and options-page resets do not affect this layout.
+const POPUP_CATEGORY_STATE='popupExpandedCategories';
+const popupCategoryElements=Array.from(document.querySelectorAll('#popupCategories > details[data-category]'));
+const popupCategoryIds=new Set(popupCategoryElements.map(node=>node.dataset.category));
+let popupExpandedCategories=['general'];
+let popupCategoriesReady=false;
+function collectOpenCategories(){return popupCategoryElements.filter(node=>node.open).map(node=>node.dataset.category);}
+function saveOpenCategories(){
+  if(!popupCategoriesReady)return;
+  const next=collectOpenCategories();
+  if(next.length===popupExpandedCategories.length && next.every((id,i)=>popupExpandedCategories[i]===id))return;
+  popupExpandedCategories=next;
+  chrome.storage.local.set({[POPUP_CATEGORY_STATE]:next});
+}
+function setOpenCategories(ids){
+  const requested=new Set(ids);
+  for(const detail of popupCategoryElements)detail.open=requested.has(detail.dataset.category);
+  saveOpenCategories();
+}
+chrome.storage.local.get({[POPUP_CATEGORY_STATE]:['general']},stored=>{
+  const value=stored[POPUP_CATEGORY_STATE];
+  const allowed=Array.isArray(value)?value.filter(id=>typeof id==='string'&&popupCategoryIds.has(id)):['general'];
+  const requested=new Set(allowed);
+  for(const detail of popupCategoryElements)detail.open=requested.has(detail.dataset.category);
+  popupExpandedCategories=collectOpenCategories();
+  popupCategoriesReady=true;
+  for(const detail of popupCategoryElements)detail.addEventListener('toggle',saveOpenCategories);
+});
+document.getElementById('expandAll')?.addEventListener('click',()=>setOpenCategories(popupCategoryElements.map(d=>d.dataset.category)));
+document.getElementById('collapseAll')?.addEventListener('click',()=>setOpenCategories([]));
+
 document.getElementById('openOptions')?.addEventListener('click',()=>{
   chrome.runtime.openOptionsPage?.();
 });

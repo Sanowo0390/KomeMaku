@@ -24,7 +24,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node -e 'const m=require("./manifest.json"); if(m.manifest_version!==3 || m.version!=="1.8.6") process.exit(1)'
+          node -e 'const m=require("./manifest.json"); if(m.manifest_version!==3 || m.version!=="1.8.7") process.exit(1)'
           for file in *.js tests/*.cjs; do node --check "$file"; done
       - name: Run unit and integration simulations
         shell: bash
@@ -43,7 +43,7 @@ jobs:
           VERSION=$(node -p 'require("./manifest.json").version')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           mkdir -p dist/KomeMaku
-          cp manifest.json background.js bridge.js content.js i18n.js live-chat.js logic.js renderer-webgl.js scheduler-host.html scheduler-host.js scheduler-worker.js player.css popup.css popup.html popup.js options.css options.html options.js ycs-bridge.js ycs-parser.js dist/KomeMaku/
+          cp manifest.json background.js bridge.js content.js i18n.js settings-groups.js live-chat.js logic.js renderer-webgl.js scheduler-host.html scheduler-host.js scheduler-worker.js player.css popup.css popup.html popup.js options.css options.html options.js ycs-bridge.js ycs-parser.js dist/KomeMaku/
           cp -R icons dist/KomeMaku/icons
           (cd dist && zip -q -r "KomeMaku-v${VERSION}.zip" KomeMaku)
           unzip -t "dist/KomeMaku-v${VERSION}.zip"
