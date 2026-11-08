@@ -3,6 +3,7 @@
   'use strict';
   const strings = {
     ja: {
+      selectionOrder:'表示削減の優先順位',selectionPopular:'人気順（いいね数）',selectionNewest:'新しい順（投稿日時）',openOptions:'すべての設定を専用ページで開く ↗',moreSettings:'詳細設定を表示',selectionHint:'表示可能な件数を超えた場合の優先順位。投稿日時を取得できないコメントは「新しい順」で後回しになります。',
       rendererMode:'描画エンジン',rendererAuto:'自動（WebGL2優先）',fpsLimit:'弾幕のFPS',fpsAuto:'自動（負荷に応じて調整）',rendererHint:'WebGL2が使えない場合はCanvas 2Dに自動切り替えします。',
       translateComments:'コメントを自動翻訳',translateLanguage:'翻訳先の言語',translateNotice:'翻訳ON時、必要なコメントのみ外部の翻訳サービスに送信します。失敗時は原文を表示します。',autoShrink:'行数が多いコメントを自動縮小',halfLineOverlap:'混雑時だけ半行ずらす（ニコニコ風）',hideTimestamps:'コメント内のタイムスタンプを隠す',
       hideReplies:'返信コメントを非表示', preserveLineBreaks:'コメントの改行を維持',
@@ -23,7 +24,7 @@
       importDesc:'YCSの「Load all」で取得したコメント・返信を自動で取り込みます。過去に取得したものはJSONから読み込めます。',
       importButton:'YCSのJSONファイルを読み込む', statusTitle:'現在の動画',
       unavailable:'YouTubeの動画ページで使用できます。',
-      hint:'再生位置に同期します。表示しきれない場合はいいね数の少ないコメントから除外します。',
+      hint:'再生位置に同期します。表示数の削減に使用する優先順位は設定で変更できます。',
       densityHint:'終了までに流れ切るように表示件数を調整します。',
       statusEmpty:'まだコメントを取得していません', statusLoading:'コメントを先読みしています…',
       statusFound:n=>`${n.toLocaleString()}件のコメントを取得`,
@@ -35,6 +36,7 @@
       importDone:n=>`${n.toLocaleString()}件を送信しました（重複は除外）`, importFailed:e=>`読み込み失敗: ${e}`
     },
     en: {
+      selectionOrder:'Prioritize when reducing comments',selectionPopular:'Most liked',selectionNewest:'Newest posted',openOptions:'Open full settings page ↗',moreSettings:'Show advanced settings',selectionHint:'When there are too many comments, prioritize likes or post date. Undated comments rank last in Newest mode.',
       rendererMode:'Renderer',rendererAuto:'Auto (prefer WebGL2)',fpsLimit:'Danmaku FPS',fpsAuto:'Auto (adaptive)',rendererHint:'Canvas 2D fallback is used when WebGL2 is unavailable.',
       translateComments:'Translate comments',translateLanguage:'Translate to',translateNotice:'When enabled, selected comments are sent to an external translation service. Original text is shown if translation fails.',autoShrink:'Auto-shrink multiline comments',halfLineOverlap:'Stagger half a line only when crowded',hideTimestamps:'Hide timestamps in comments',
       hideReplies:'Hide replies', preserveLineBreaks:'Keep comment line breaks',
@@ -54,7 +56,7 @@
       importDesc:'Comments and replies loaded via YCS “Load all” are captured automatically. You can also import previously saved YCS JSON.',
       importButton:'Import YCS JSON file', statusTitle:'Current video',
       unavailable:'Open a YouTube video to use this extension.',
-      hint:'Synchronized to playback. Lowest-liked comments are skipped when the screen is full.',
+      hint:'Synchronized to playback. Choose the reduction priority in settings.',
       densityHint:'Adjusts count to finish scrolling before the video ends.',
       statusEmpty:'No comments loaded yet', statusLoading:'Preloading comments…',
       statusFound:n=>`${n.toLocaleString()} comments loaded`,
@@ -66,6 +68,7 @@
       importDone:n=>`Sent ${n.toLocaleString()} comments (duplicates omitted)`, importFailed:e=>`Import failed: ${e}`
     },
     'zh-CN': {
+      selectionOrder:'减少显示时的优先顺序',selectionPopular:'热门（点赞数）',selectionNewest:'最新（发布时间）',openOptions:'打开完整设置页面 ↗',moreSettings:'展开高级设置',selectionHint:'超过显示容量时按点赞数或发布时间优先。无法读取发布时间的评论会在最新模式中排在末尾。',
       rendererMode:'渲染引擎',rendererAuto:'自动（优先WebGL2）',fpsLimit:'弹幕帧率',fpsAuto:'自动（自适应）',rendererHint:'不支持WebGL2时自动回退Canvas 2D。',
       translateComments:'翻译评论',translateLanguage:'翻译目标语言',translateNotice:'开启后，部分评论将发送至外部翻译服务；翻译失败则显示原文。',autoShrink:'自动缩小多行评论',halfLineOverlap:'仅拥挤时错开半行',hideTimestamps:'隐藏评论中的时间戳',
       hideReplies:'隐藏回复', preserveLineBreaks:'保留评论换行',
@@ -83,7 +86,7 @@
       speedMode:'速度变化', speedFixed:'固定速度', speedRandom:'随机速度', importTitle:'YCS Continued 联动',
       importDesc:'自动接收 YCS “Load all” 获取的评论和回复，也可导入之前导出的 YCS JSON。',
       importButton:'导入 YCS JSON 文件', statusTitle:'当前视频', unavailable:'请先打开 YouTube 视频。',
-      hint:'与播放进度同步；空间不足时优先跳过点赞数较少的评论。',
+      hint:'与播放进度同步；在设置中选择显示数量减少时的优先顺序。',
       densityHint:'调整显示数量，确保视频结束前滚动完毕。',
       statusEmpty:'尚未加载评论', statusLoading:'正在预加载评论…',
       statusFound:n=>`已获取 ${n.toLocaleString()} 条评论`,
@@ -95,6 +98,7 @@
       importDone:n=>`已发送 ${n.toLocaleString()} 条评论（已去重）`, importFailed:e=>`导入失败：${e}`
     },
     'zh-TW': {
+      selectionOrder:'減少顯示時的優先順序',selectionPopular:'熱門（按讚數）',selectionNewest:'最新（發佈時間）',openOptions:'開啟完整設定頁面 ↗',moreSettings:'顯示進階設定',selectionHint:'超出顯示容量時依按讚數或發佈時間排序。未知發佈時間的留言在最新模式排最後。',
       rendererMode:'渲染引擎',rendererAuto:'自動（優先WebGL2）',fpsLimit:'彈幕影格率',fpsAuto:'自動（自適應）',rendererHint:'無法使用WebGL2時自動回退Canvas 2D。',
       translateComments:'翻譯留言',translateLanguage:'翻譯目標語言',translateNotice:'開啟後，部分留言會傳送至外部翻譯服務；失敗時顯示原文。',autoShrink:'自動縮小多行留言',halfLineOverlap:'僅擁擠時錯開半行',hideTimestamps:'隱藏留言中的時間戳',
       hideReplies:'隱藏回覆', preserveLineBreaks:'保留留言換行',
@@ -112,7 +116,7 @@
       speedMode:'速度變化', speedFixed:'固定速度', speedRandom:'隨機速度', importTitle:'YCS Continued 整合',
       importDesc:'自動接收 YCS「Load all」取得的留言與回覆，也可匯入先前匯出的 YCS JSON。',
       importButton:'匯入 YCS JSON 檔案', statusTitle:'目前影片', unavailable:'請先開啟 YouTube 影片。',
-      hint:'與播放進度同步；空間不足時優先略過讚數較少的留言。',
+      hint:'與播放進度同步；在設定中選擇顯示數量減少時的優先順序。',
       densityHint:'調整顯示數量，確保影片結束前捲動完畢。',
       statusEmpty:'尚未載入留言', statusLoading:'正在預先載入留言…',
       statusFound:n=>`已取得 ${n.toLocaleString()} 則留言`,

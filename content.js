@@ -5,9 +5,10 @@
 
   const {normalizeText, cleanOriginalText, hideTimestamps, prepareText, parseLikeCount, buildSchedule, lowerBound, scrollTravelSeconds, createTrack, planFeatured, planTracks, mergeStableTracks, selectFeatured, shouldScrollFeatured, visibleTracks, trackX, commentColor, speedFactor} = globalThis.YDLLogic;
   const I18N = globalThis.YDLI18N;
+  const parsePublishedAt = globalThis.YDLYcsParser?.parsePublishedAt || (()=>null);
   const t = (key,...args) => I18N.translate(I18N.detect(settings.language),key,...args);
   const DEFAULTS = Object.freeze({enabled:true,fontSize:24,opacity:0.92,speed:1,density:5,
-    color:'#ffffff',colorMode:'single',speedMode:'fixed',language:'auto',
+    color:'#ffffff',colorMode:'single',speedMode:'fixed',language:'auto',selectionOrder:'popular',
     hideReplies:false,preserveLineBreaks:false,hideFromLines:0,featuredPercent:0,featuredScrollFromLines:0,
     translateComments:false,translateLanguage:'ja',autoShrink:true,halfLineOverlap:true,hideTimestamps:false,rendererMode:'auto',fpsLimit:0});
   const settings = {...DEFAULTS};
@@ -230,6 +231,7 @@
       const id = String(item.id || `text:${text.toLowerCase()}`);
       const key = `comment:${id}`;
       const likes = parseLikeCount(item.likes ?? item.likeCount ?? item.totalLikes);
+      const publishedAt=parsePublishedAt(item.publishedAt??item.publishedTimeText??item.commentTime);
       if (recordKeys.has(key)) {
         // The initial YouTube/DOM fetch may have no like information; YCS
         // often provides the accurate score later. Keep the higher known count.
@@ -238,6 +240,9 @@
           const wasChanged=changed;
           changed=false;
           if (likes > previous.likes) {previous.likes = likes;changed = true;}
+          if (publishedAt && (!previous.publishedAt || publishedAt>previous.publishedAt)) {
+            previous.publishedAt=publishedAt;changed=true;
+          }
           if (!previous.isReply && item.isReply===true) {previous.isReply=true;changed=true;}
           if(!previous.parentId && item.parentId) {previous.parentId=item.parentId;changed=true;}
           if (originalText.length > previous.originalText.length) {
@@ -249,7 +254,7 @@
         continue;
       }
       recordKeys.add(key);
-      const record = {id, text, originalText, source, likes, isReply:item.isReply===true,parentId:item.parentId||null,
+      const record = {id, text, originalText, source, likes, publishedAt,isReply:item.isReply===true,parentId:item.parentId||null,
         time:Number.isFinite(item.time) && item.time >= 0 ? item.time : null};
       records.push(record);
       recordByKey.set(key, record);
@@ -350,7 +355,7 @@
         speedFactor:speedFactor(record.id,settings.speedMode)});
     }
     const travelFor=record=>scrollTravelSeconds(textWidth(record.text,record.fontsize||m.fontsize),m.w,settings.speed*record.speedFactor);
-    const schedule=buildSchedule(eligible,duration,settings.density,{travelFor});
+    const schedule=buildSchedule(eligible,duration,settings.density,{travelFor,selectionOrder:settings.selectionOrder});
     untimed=schedule.generic;
     const features=selectFeatured(schedule.events,settings.featuredPercent);
     const opts={viewportWidth:m.w,lanes:m.lanes,duration,speed:settings.speed,
@@ -408,7 +413,9 @@
       if (text) {
         const votes = element.querySelector("#vote-count-middle, #vote-count-left, .yt-spec-button-shape-next__button-text-content");
         const likes = parseLikeCount(votes?.getAttribute("aria-label") || votes?.textContent);
+        const publishedText=element.querySelector('#published-time-text, .published-time-text')?.textContent||'';
         items.push({text, id: element.getAttribute("id") || text, likes,
+          publishedAt:parsePublishedAt(publishedText),
           isReply:Boolean(element.closest('ytd-comment-replies-renderer, #replies'))});
       }
     }
@@ -655,6 +662,7 @@
     ['density','range',1,11,1], ['opacity','range',0.2,1,0.05],
     ['rendererMode','select',['auto','webgl2','canvas']],
     ['fpsLimit','select',['0','15','24','30','45','60','120']],
+    ['selectionOrder','select',['popular','newest']],
     ['colorMode','select',['single','random']], ['color','color'],
     ['speedMode','select',['fixed','random']], ['hideReplies','checkbox'],
     ['preserveLineBreaks','checkbox'], ['hideFromLines','range',0,10,1],
@@ -679,6 +687,7 @@
     return String(value);
   }
   function chooseLabel(key,value) {
+    if (key === 'selectionOrder') return t(value==='newest'?'selectionNewest':'selectionPopular');
     if (key === 'rendererMode') return value==='auto'?t('rendererAuto'):value==='webgl2'?'WebGL2':'Canvas 2D';
     if (key === 'fpsLimit') return Number(value)===0?t('auto'):`${value} FPS`;
     if (key === 'colorMode') return t(value === 'single' ? 'colorSingle':'colorRandom');
@@ -698,7 +707,13 @@
     const close=document.createElement('button');close.type='button';close.className='ydl-panel-close';
     close.textContent='×';close.title=t('close');close.setAttribute('aria-label',t('close'));
     close.addEventListener('click',()=>setPanelOpen(false));
-    header.append(heading,close);panel.appendChild(header);
+    const fullOptions=document.createElement('button');fullOptions.type='button';
+    fullOptions.className='ydl-open-options';fullOptions.textContent=t('openOptions');
+    fullOptions.addEventListener('click',event=>{
+      event.stopPropagation();setPanelOpen(false);
+      try{chrome.runtime.sendMessage({type:'YDL_OPEN_OPTIONS'},()=>void chrome.runtime.lastError);}catch{}
+    });
+    header.append(heading,fullOptions,close);panel.appendChild(header);
     for(const [key,type,min,max,step] of fields) {
       const row=document.createElement('div');row.className='ydl-panel-field';
       const label=document.createElement('label');label.htmlFor=`ydl-player-${key}`;
@@ -757,6 +772,8 @@
     playerButton.setAttribute('aria-pressed',String(settings.enabled));
     playerPanel.setAttribute('aria-label',t('playerPanel'));
     playerPanel.querySelector('.ydl-panel-heading').textContent=t('playerPanel');
+    const fullOptions=playerPanel.querySelector('.ydl-open-options');
+    if(fullOptions)fullOptions.textContent=t('openOptions');
     const close=playerPanel.querySelector('.ydl-panel-close');
     close.title=t('close');close.setAttribute('aria-label',t('close'));
     for(const [key,type] of fields) {
@@ -858,7 +875,7 @@
         (!webgl && (changes.color || changes.colorMode))) clearSprites();
     if(changes.translateLanguage || changes.translateComments) resetTranslationSession();
     if (changes.fontSize || changes.preserveLineBreaks || changes.hideTimestamps) textWidths.clear();
-    if ((changes.density || changes.fontSize || changes.speed || changes.speedMode || changes.hideReplies || changes.preserveLineBreaks || changes.hideFromLines || changes.featuredPercent || changes.featuredScrollFromLines || changes.translateComments || changes.translateLanguage || changes.autoShrink || changes.halfLineOverlap || changes.hideTimestamps) && records.length) queueRebuild(true);
+    if ((changes.selectionOrder || changes.density || changes.fontSize || changes.speed || changes.speedMode || changes.hideReplies || changes.preserveLineBreaks || changes.hideFromLines || changes.featuredPercent || changes.featuredScrollFromLines || changes.translateComments || changes.translateLanguage || changes.autoShrink || changes.halfLineOverlap || changes.hideTimestamps) && records.length) queueRebuild(true);
     invalidated=true;
     updatePlayerControls();
     if (settings.enabled) {

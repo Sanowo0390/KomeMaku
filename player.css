@@ -20,3 +20,5 @@
 /* Fallback if YouTube's control bar markup is unavailable. */
 .html5-video-player > .ydl-floating-toggle {position:absolute;top:12px;right:12px;width:34px;height:34px;border:0;border-radius:50%;z-index:70;background:#111b;color:#fff;cursor:pointer}
 .html5-video-player > .ydl-floating-toggle svg {width:23px;height:23px}
+
+.ydl-open-options{font:inherit;font-size:11px!important;font-weight:650!important;color:#ffa2b4!important;background:#3c2832!important;border:1px solid #72505e!important;border-radius:7px!important;padding:6px 9px!important;cursor:pointer!important;white-space:nowrap}.ydl-open-options:hover{background:#53313f!important}

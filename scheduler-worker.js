@@ -45,7 +45,7 @@ function compute(message){
         speedFactor:L.speedFactor(record.id,settings.speedMode)});
     }
     const travelFor=r=>L.scrollTravelSeconds(measureText(r.text,r.fontsize||m.fontsize),m.w,settings.speed*r.speedFactor);
-    const schedule=L.buildSchedule(eligible,duration,settings.density,{travelFor});
+    const schedule=L.buildSchedule(eligible,duration,settings.density,{travelFor,selectionOrder:settings.selectionOrder});
     generic=schedule.generic;
     const features=L.selectFeatured(schedule.events,settings.featuredPercent);
     const opts={viewportWidth:m.w,lanes:m.lanes,duration,speed:settings.speed,

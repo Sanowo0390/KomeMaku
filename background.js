@@ -30,6 +30,10 @@ async function translate(text,target){
   }finally{clearTimeout(timeout);}
 }
 chrome.runtime.onMessage.addListener((msg,sender,sendResponse)=>{
+  if(msg?.type==='YDL_OPEN_OPTIONS'&&sender.tab&&sender.url?.startsWith('https://www.youtube.com/')){
+    chrome.runtime.openOptionsPage?.().catch?.(()=>{});
+    return;
+  }
   if(msg?.type==='YDL_TRANSLATE' && sender.tab && sender.url?.startsWith('https://www.youtube.com/')){
     translate(msg.text,msg.target).then(text=>sendResponse({ok:true,text})).catch(error=>sendResponse({ok:false,error:String(error?.message||error)}));
     return true;

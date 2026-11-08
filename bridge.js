@@ -168,12 +168,14 @@
             if (typeof text === "string" && text.trim()) {
               comments.push({id: entity.properties.commentId || key, text,
                 likes: entity.toolbar?.likeCountLiked ?? entity.toolbar?.likeCount ?? 0,
+                publishedAt:globalThis.YDLYcsParser?.parsePublishedAt(entity.properties?.publishedTime||entity.properties?.publishedTimeText||entity.properties?.publishedAt),
                 isReply:Number(entity.properties?.replyLevel||0)>0 || Boolean(entity.properties?.parentCommentId)});
             }
           } else if (old) {
             const text = textFromRuns(old);
             if (text.trim()) comments.push({id: old.commentId, text,
               likes: old.likeCount ?? old.voteCount?.simpleText ?? 0,
+              publishedAt:globalThis.YDLYcsParser?.parsePublishedAt(old.publishedTimeText||old.publishedAt),
               isReply:Boolean(item.typeComment==='R' || item.originComment || Number(item.replyLevel||0)>0)});
           }
         }
@@ -188,6 +190,7 @@
       if (typeof value === "string" && value.trim() && !ids.has(id)) {
         comments.push({id, text: value,
           likes: entity.toolbar?.likeCountLiked ?? entity.toolbar?.likeCount ?? 0,
+          publishedAt:globalThis.YDLYcsParser?.parsePublishedAt(entity.properties?.publishedTime||entity.properties?.publishedTimeText||entity.properties?.publishedAt),
                 isReply:Number(entity.properties?.replyLevel||0)>0 || Boolean(entity.properties?.parentCommentId)});
         ids.add(id);
       }

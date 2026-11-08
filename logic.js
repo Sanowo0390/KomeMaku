@@ -111,10 +111,19 @@
   function speedFactor(id, mode='fixed') {
     return mode === 'random' ? 0.75 + (hash('speed:'+String(id)) % 501) / 1000 : 1;
   }
-  function selectByLikes(items, budget) {
-    if (!Number.isFinite(budget) || items.length <= budget) return [...items];
-    return [...items].sort(likeRank).slice(0, Math.max(0, Math.floor(budget)));
+  // Newest means publication time, not fetch order or video playback timestamp.
+  // Missing/invalid dates go after known dates, with a stable ID tie-breaker.
+  function newestRank(a,b) {
+    const at=Number.isFinite(a.publishedAt)&&a.publishedAt>0?a.publishedAt:0;
+    const bt=Number.isFinite(b.publishedAt)&&b.publishedAt>0?b.publishedAt:0;
+    return bt-at || hash(String(a.id))-hash(String(b.id)) || String(a.id).localeCompare(String(b.id));
   }
+  function selectForDisplay(items,budget,order='popular') {
+    if (!Number.isFinite(budget) || items.length <= budget) return [...items];
+    const rank=order==='newest'?newestRank:likeRank;
+    return [...items].sort(rank).slice(0,Math.max(0,Math.floor(budget)));
+  }
+  function selectByLikes(items,budget){return selectForDisplay(items,budget,'popular');}
   // Matches the scrolling distance and velocity used by content.js.
   // The extra pixels are the initial right margin and the off-screen exit margin.
   function scrollTravelSeconds(textWidth, viewportWidth, speedMultiplier = 1) {
@@ -138,7 +147,7 @@
       return Number.isFinite(t) && t > 0 ? t : 9;
     };
     let budget = unlimited ? Infinity : (validDuration ? Math.max(1, Math.ceil(duration / interval)) : Infinity);
-    let selected = selectByLikes(eligible, budget);
+    let selected = selectForDisplay(eligible,budget,options.selectionOrder);
     let lastGenericTime = 0;
     if (validDuration && selected.length) {
       // Reserve time for the *entire* comment to travel beyond the left edge.
@@ -152,7 +161,7 @@
         const adjustedBudget = Math.max(1, Math.floor(lastGenericTime / interval) + 1);
         if (adjustedBudget >= budget) break;
         budget = adjustedBudget;
-        selected = selectByLikes(eligible, budget);
+        selected = selectForDisplay(eligible,budget,options.selectionOrder);
       }
       // Recalculate once more if the last pass removed a long comment.
       let maxTravel = 0;
@@ -358,7 +367,7 @@
   function trackX(track, videoTime, viewportWidth) {
     return viewportWidth + 10 - track.velocity * (videoTime - track.time);
   }
-  const api = Object.freeze({normalizeText, cleanOriginalText, hideTimestamps, prepareText, lineCount, selectFeatured, shouldScrollFeatured, mergeStableTracks, parseTimes, lowerBound, hash, parseLikeCount, likeRank, selectByLikes, commentColor, speedFactor, scrollTravelSeconds, buildSchedule, scrollingSpeed, safeFollowingStart, createTrack, planFeatured, planTracks, visibleTracks, trackX});
+  const api = Object.freeze({normalizeText, cleanOriginalText, hideTimestamps, prepareText, lineCount, selectFeatured, shouldScrollFeatured, mergeStableTracks, parseTimes, lowerBound, hash, parseLikeCount, likeRank, newestRank, selectByLikes, selectForDisplay, commentColor, speedFactor, scrollTravelSeconds, buildSchedule, scrollingSpeed, safeFollowingStart, createTrack, planFeatured, planTracks, visibleTracks, trackX});
   globalThis.YDLLogic = api;
   if (typeof module === "object" && module.exports) module.exports = api;
 })();

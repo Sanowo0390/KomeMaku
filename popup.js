@@ -1,6 +1,6 @@
 'use strict';
 const DEFAULTS = {enabled:true,fontSize:24,speed:1,density:5,opacity:.92,
-  color:'#ffffff',colorMode:'single',speedMode:'fixed',language:'auto',hideReplies:false,preserveLineBreaks:false,hideFromLines:0,featuredPercent:0,featuredScrollFromLines:0,
+  color:'#ffffff',colorMode:'single',speedMode:'fixed',language:'auto',selectionOrder:'popular',hideReplies:false,preserveLineBreaks:false,hideFromLines:0,featuredPercent:0,featuredScrollFromLines:0,
   translateComments:false,translateLanguage:'ja',autoShrink:true,halfLineOverlap:true,hideTimestamps:false,rendererMode:'auto',fpsLimit:0};
 const I18N=globalThis.YDLI18N;
 const settings={...DEFAULTS};
@@ -83,6 +83,9 @@ chrome.storage.onChanged.addListener((changes,area)=>{
       if(key==='language')translateUi();
     }
   }
+});
+document.getElementById('openOptions')?.addEventListener('click',()=>{
+  chrome.runtime.openOptionsPage?.();
 });
 const ycsFile=document.getElementById('ycsFile');
 const importStatus=document.getElementById('importStatus');

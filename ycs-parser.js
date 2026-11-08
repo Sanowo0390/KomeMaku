@@ -12,11 +12,49 @@
     const unit = {'億':1e8,'万':1e4,'千':1e3,k:1e3,m:1e6,b:1e9}[found[2]?.toLowerCase()] || 1;
     return Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.floor(Number(found[1]) * unit)));
   }
+  // Best-effort publication time extraction across YouTube/YCS response formats.
+  // We keep video timestamps (comment timecodes) distinct from post dates.
+  function parsePublishedAt(value, now=Date.now()) {
+    if(value==null)return null;
+    if(typeof value==='object'){
+      if(Array.isArray(value.runs))return parsePublishedAt(value.runs.map(x=>x.text||'').join(''),now);
+      for(const key of ['timestamp','publishedAt','publishedTime','simpleText','text','content']){
+        if(value[key]!=null){const found=parsePublishedAt(value[key],now);if(found!==null)return found;}
+      }
+      return null;
+    }
+    if(typeof value==='number'||/^\d{10,13}$/.test(String(value).trim())){
+      const n=Number(value),ms=n>1e11?n:n*1000;
+      return Number.isFinite(ms)&&ms>=946684800000&&ms<=now+86400000?ms:null;
+    }
+    if(typeof value!=='string')return null;
+    const original=value.trim().replace(/\s*\((?:edited|編集済み)\)\s*$/i,'');
+    const iso=Date.parse(original);
+    if(Number.isFinite(iso)&&iso>=946684800000&&iso<=now+86400000)return iso;
+    const units={
+      second:1000,seconds:1000,sec:1000,minute:60000,minutes:60000,min:60000,
+      hour:3600000,hours:3600000,day:86400000,days:86400000,
+      week:604800000,weeks:604800000,month:2629800000,months:2629800000,
+      year:31557600000,years:31557600000,
+      秒:1000,分:60000,時間:3600000,日:86400000,週間:604800000,週:604800000,
+      ヶ月:2629800000,か月:2629800000,カ月:2629800000,月:2629800000,年:31557600000,
+      秒钟:1000,分钟:60000,小时:3600000,天:86400000,周:604800000,个月:2629800000,個月:2629800000,
+      年前:31557600000,小時:3600000,分鐘:60000,週:604800000,個月:2629800000,
+    };
+    if(/^(just now|たった今|刚刚|剛剛|방금)$/i.test(original))return now;
+    if(/^(yesterday|昨日|昨天|어제)$/i.test(original))return now-86400000;
+    const m=original.match(/(\d+(?:\.\d+)?)\s*(seconds?|secs?|minutes?|mins?|hours?|days?|weeks?|months?|years?|秒钟|分钟|小时|个月|個月|小時|分鐘|時間|週間|ヶ月|か月|カ月|周|週|秒|分|日|天|月|年)/i);
+    if(!m || !(/ago|前|전|previous|old|間前/i.test(original)))return null;
+    const u=units[m[2].toLowerCase()]??units[m[2]];
+    if(!u)return null;
+    const ms=now-Number(m[1])*u;
+    return Number.isFinite(ms)&&ms>=946684800000?Math.floor(ms):null;
+  }
   function extractResponseComments(response) {
     if (!response || typeof response !== 'object') return [];
     const result = [];
     const seen = new Map();
-    function add(id, value, likes=0, isReply=false) {
+    function add(id, value, likes=0, isReply=false, publishedAt=null) {
       const text = typeof value === 'string' ? value.trim() : '';
       if (!text) return;
       const stableId = typeof id === 'string' && id ? id : `unknown:${text}`;
@@ -25,9 +63,10 @@
         const previous = seen.get(stableId);
         previous.likes = Math.max(previous.likes, score);
         previous.isReply ||= Boolean(isReply);
+        if(publishedAt&&!previous.publishedAt)previous.publishedAt=publishedAt;
         return;
       }
-      const item = { id: stableId, text, likes:score, isReply:Boolean(isReply) };
+      const item = { id: stableId, text, likes:score, isReply:Boolean(isReply),publishedAt };
       seen.set(stableId, item);
       result.push(item);
     }
@@ -43,7 +82,8 @@
         const id = entity.properties?.commentId || entity.key;
         add(id, entity.properties?.content?.content || entity.properties?.content?.text || entity.properties?.contentText,
           entity.toolbar?.likeCountLiked ?? entity.toolbar?.likeCount ?? entity.properties?.likeCount,
-          reply || Number(entity.properties?.replyLevel || 0) > 0 || Boolean(entity.properties?.parentCommentId));
+          reply || Number(entity.properties?.replyLevel || 0) > 0 || Boolean(entity.properties?.parentCommentId),
+          parsePublishedAt(entity.properties?.publishedTime||entity.properties?.publishedTimeText||entity.properties?.publishedAt));
         const found=seen.get(String(id)); if(found && (entity.properties?.parentCommentId || parentId)) found.parentId=String(entity.properties?.parentCommentId||parentId);
       }
       if (node.commentRenderer) {
@@ -53,7 +93,8 @@
           || (Array.isArray(content?.runs) ? content.runs.map(x => x.text || '').join('') : '');
         add(renderer.commentId, value,
           renderer.likeCount ?? renderer.voteCount?.simpleText ?? renderer.likesForSort,
-          reply || Number(node.replyLevel||0)>0 || node.typeComment==='R' || Boolean(node.originComment));
+          reply || Number(node.replyLevel||0)>0 || node.typeComment==='R' || Boolean(node.originComment),
+          parsePublishedAt(renderer.publishedTimeText||renderer.publishedAt||renderer.publishedTime));
         const found=seen.get(String(renderer.commentId)); if(found && (node.originComment?.commentRenderer?.commentId || parentId)) found.parentId=String(node.originComment?.commentRenderer?.commentId||parentId);
       }
       if (Array.isArray(node)) {
@@ -108,7 +149,8 @@
       seen.add(key);
       const renderer = raw.commentRenderer || raw;
       const likes = parseLikeCount(raw.totalLikes ?? raw.likes ?? renderer.likeCount ?? renderer.likesForSort ?? renderer.voteCount?.simpleText);
-      items.push({id:key,text,time,likes,parentId:raw.parentId||raw.originComment?.commentRenderer?.commentId||parentId||null,isReply:Boolean(isReply || raw.typeComment==='R' || Number(raw.replyLevel||0)>0 || raw.originComment || raw.parentId || parentId)});
+      const publishedAt=parsePublishedAt(raw.publishedAt??raw.publishedAtMs??raw.publishedTime??raw.commentTime??raw.commentDate??raw.publishedTimeText??renderer.publishedTimeText);
+      items.push({id:key,text,time,likes,publishedAt,parentId:raw.parentId||raw.originComment?.commentRenderer?.commentId||parentId||null,isReply:Boolean(isReply || raw.typeComment==='R' || Number(raw.replyLevel||0)>0 || raw.originComment || raw.parentId || parentId)});
     }
     function visitComments(array, depth=0, parentId=null) {
       if (!Array.isArray(array) || depth > 20) return;
@@ -125,7 +167,7 @@
     }
     return {videoId,items};
   }
-  const api = Object.freeze({extractResponseComments, extractYcsExport, videoIdFromUrl, parseLikeCount});
+  const api = Object.freeze({extractResponseComments, extractYcsExport, videoIdFromUrl, parseLikeCount,parsePublishedAt});
   globalThis.YDLYcsParser = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })();

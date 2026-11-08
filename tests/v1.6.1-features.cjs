@@ -29,7 +29,7 @@ const exported=parser.extractYcsExport({videoId:'abcdefghijk',comments:[{id:'p',
 assert.equal(exported.items.find(x=>x.id==='r').parentId,'p');
 // Translation is opt-in, isolated in the service worker, and errors preserve original texts.
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
-assert.equal(manifest.version,'1.7.2');
+assert.equal(manifest.version,'1.8.0');
 assert.ok(manifest.host_permissions.includes('https://translate.googleapis.com/*'));
 const content=fs.readFileSync(path.join(root,'content.js'),'utf8');
 for(const key of ['translateComments','translateLanguage','autoShrink','halfLineOverlap']){

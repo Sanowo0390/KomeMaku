@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KomeMaku — 設定</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#general" aria-label="KomeMaku settings home">
+        <span class="brand-mark">弾</span><span><strong>KomeMaku</strong><small id="brandSubtitle">設定センター</small></span>
+      </a>
+      <div class="nav-label" id="navLabel">設定カテゴリ</div>
+      <nav id="sectionNav" aria-label="設定カテゴリ"></nav>
+      <div class="sidebar-bottom">
+        <span class="version" id="versionText"></span>
+        <a href="https://github.com/Sanowo0390/KomeMaku" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
+      </div>
+    </aside>
+    <main class="workspace">
+      <div class="topbar">
+        <span class="crumb" id="breadcrumb">設定 / すべての項目</span>
+        <span id="saveStatus" class="save-status" role="status" aria-live="polite"></span>
+      </div>
+      <header class="hero">
+        <div class="eyebrow" id="heroEyebrow">KOMEMAKU CONTROL CENTER</div>
+        <h1 id="heroTitle">弾幕を、自分好みに。</h1>
+        <p id="heroDescription">表示頻度、優先順位、人気コメント、翻訳、描画性能まで、すべてここから変更できます。変更は自動保存され、YouTubeにも反映されます。</p>
+        <label class="search-box" for="settingsSearch"><span aria-hidden="true">⌕</span><input id="settingsSearch" type="search" placeholder="設定を検索（例：コメント、FPS、翻訳）"><kbd>/</kbd></label>
+      </header>
+      <div id="settingsContainer"></div>
+      <section class="bottom-section">
+        <div><h2 id="resetTitle">設定を初期状態に戻す</h2><p id="resetHint">保存済みの設定値だけを初期化します。</p></div>
+        <button id="resetDefaults" class="reset-button" type="button">初期設定に戻す</button>
+      </section>
+      <footer id="pageFooter">KomeMaku — ブラウザー内で動作する設定ページです。独立した外部サイトへの登録は不要です。</footer>
+    </main>
+  </div>
+  <script src="i18n.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>
