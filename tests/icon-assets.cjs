@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const root=path.resolve(__dirname,'..');
 const manifest=require('../manifest.json');
-assert.equal(manifest.version,'1.8.9');
+assert.equal(manifest.version,'1.9.0');
 assert.equal(manifest.manifest_version,3);
 const signature=Buffer.from([137,80,78,71,13,10,26,10]);
 for(const px of [16,32,48,128]){
@@ -34,8 +34,17 @@ assert.match(popup,/<img src="icons\/icon48\.png"/);
 assert.doesNotMatch(options,/<span class="brand-mark">弾<\/span>/);
 assert.doesNotMatch(popup,/<span class="logo">弾<\/span>/);
 const css=fs.readFileSync(path.join(root,'options.css'),'utf8');
-for(const hex of ['#101119','#eb5873','#f1f2f7']){
-  assert.ok(css.includes(hex),'Settings palette missing '+hex);
-  assert.ok(fs.readFileSync(path.join(root,'icons/icon.svg'),'utf8').includes(hex),'Icon palette missing '+hex);
+const popupCss=fs.readFileSync(path.join(root,'popup.css'),'utf8');
+const playerCss=fs.readFileSync(path.join(root,'player.css'),'utf8');
+for(const color of ['--km-bg:#061f25','--km-mint:#30eeb9','--km-text:#f4fffc']){
+  assert.ok(css.includes(color),'Settings palette missing '+color);
+  assert.ok(popupCss.includes(color),'Popup palette missing '+color);
 }
+for(const token of ['#80ffdc','#062e38','#f8fffd']){
+  assert.ok(fs.readFileSync(path.join(root,'icons/icon.svg'),'utf8').includes(token),
+    'Icon should keep approved mint/teal/white reference color '+token);
+}
+assert.ok(playerCss.includes('#30eebb'),'Player controls must use mint accent');
+assert.doesNotMatch(css,/#eb5873|#ed566d|#ff9dae/,'No legacy coral in settings');
+assert.doesNotMatch(popupCss,/#eb4051|#ed4858|#ffc8d2/,'No legacy coral in popup');
 console.log('PASS: KomeMaku icon assets are valid PNGs at 16/32/48/128 px, correctly referenced, and editable SVGs are retained');

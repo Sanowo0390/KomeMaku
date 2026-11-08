@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -20,11 +20,21 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Setup Python for reproducible icon generation
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Rasterize approved mint branding
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install 'CairoSVG>=2.7,<3' 'Pillow>=10,<13'
+          python scripts/render-icons.py
       - name: Verify Manifest V3 and JavaScript syntax
         shell: bash
         run: |
           set -euo pipefail
-          node -e 'const m=require("./manifest.json"); if(m.manifest_version!==3 || m.version!=="1.8.9") process.exit(1)'
+          node -e 'const m=require("./manifest.json"); if(m.manifest_version!==3 || m.version!=="1.9.0") process.exit(1)'
           for file in *.js tests/*.cjs; do node --check "$file"; done
       - name: Run unit and integration simulations
         shell: bash
@@ -35,6 +45,18 @@ jobs:
             node "$file"
             echo "::endgroup::"
           done
+      - name: Publish updated PNG icons to main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$(git status --porcelain -- icons/icon16.png icons/icon32.png icons/icon48.png icons/icon128.png)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add icons/icon16.png icons/icon32.png icons/icon48.png icons/icon128.png
+            git commit -m "assets: generate v1.9.0 mint brand icons from SVG"
+            git push origin HEAD:main
+          fi
       - name: Stage extension for Chrome and Edge
         id: package
         shell: bash

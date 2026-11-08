@@ -1,5 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="KomeMaku">
-  <rect width="128" height="128" rx="27" fill="#101119"/>
-  <path d="M47 23h40c16 0 27 12 27 27v25c0 15-11 26-27 26H47c-2 0-4 0-5-1l-17 11 3-20c-6-4-10-11-10-19V50c0-16 12-27 29-27z" fill="#eb5873"/>
-  <path d="M56 44c0-3 3.2-4.7 5.7-3.2l29 18c2.5 1.6 2.5 5 0 6.6l-29 18c-2.5 1.5-5.7-.2-5.7-3.2z" fill="#f1f2f7"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="KomeMaku small">
+  <defs><linearGradient id="b" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#88ffdd"/><stop offset="1" stop-color="#00dfa8"/></linearGradient></defs>
+  <rect x="2" y="2" width="124" height="124" rx="30" fill="url(#b)"/>
+  <rect x="13" y="13" width="102" height="102" rx="22" fill="#063139"/>
+  <path d="M66 45H45Q31 45 31 59V80Q31 94 45 94H75" stroke="white" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M91 58V81" stroke="white" stroke-width="11" fill="none"/>
+  <path d="M55 56L78 69L55 83Z" fill="white"/>
+  <path d="M87 27h11a12 12 0 0 1 0 24H82l-6 5 1-9a12 12 0 0 1 10-20z" fill="white"/>
+  <path d="M95 98V87" stroke="#42ffd0" stroke-width="7" stroke-linecap="round"/>
+  <path d="M95 92Q81 92 80 80Q94 81 95 92M95 92Q108 93 110 81Q97 81 95 92" fill="#42ffd0"/>
 </svg>
