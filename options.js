@@ -1,7 +1,7 @@
 'use strict';
 // KomeMaku built-in options page. No external site, no external UI dependencies.
 const DEFAULTS=Object.freeze({
- enabled:true,fontSize:24,fontFamily:'system',outlineEnabled:true,outlineStrength:1,lineSpacing:1,opacity:0.92,speed:1,density:5,selectionOrder:'popular',
+ enabled:true,fontSize:24,fontFamily:'system',autoFontScale:true,outlineEnabled:true,outlineStrength:1,outlineOpacity:.86,lineSpacing:1,opacity:0.92,speed:1,density:5,selectionOrder:'popular',
  color:'#ffffff',colorMode:'single',speedMode:'fixed',language:'auto',
  hideReplies:false,preserveLineBreaks:false,hideFromLines:0,featuredPercent:0,featuredScrollFromLines:0,
  translateComments:false,translateLanguage:'ja',autoShrink:true,halfLineOverlap:true,hideTimestamps:false,
@@ -19,7 +19,7 @@ const groups=[
  {id:'general',icon:'⚙',title:['基本設定','General','基本设置','基本設定'],subtitle:['弾幕の有効化と言語','Turn on danmaku and choose language','弹幕开关与界面语言','彈幕開關與介面語言'],keys:['enabled','language']},
  {id:'selection',icon:'▤',title:['表示・優先順位','Selection','显示与优先级','顯示與優先順序'],subtitle:['大量コメントをどれから表示するか','Choose which comments win when space runs out','决定优先显示哪些评论','決定優先顯示哪些留言'],keys:['selectionOrder','density','hideReplies','hideFromLines','preserveLineBreaks','hideTimestamps']},
  {id:'featured',icon:'★',title:['人気コメント','Featured comments','热门评论','熱門留言'],subtitle:['画面下端に拡大表示するコメント','Control highlighted comments at bottom','底部高赞弹幕','底部熱門留言'],keys:['featuredPercent','featuredScrollFromLines']},
- {id:'appearance',icon:'◉',title:['見た目・動き','Appearance','外观与动画','外觀與動態'],subtitle:['文字、流れる速度、表示の重なり','Text, colors, movement and spacing','文字、颜色、速度与重叠','文字、色彩、速度與重疊'],keys:['fontSize','fontFamily','outlineEnabled','outlineStrength','lineSpacing','speed','opacity','colorMode','color','speedMode','autoShrink','halfLineOverlap']},
+ {id:'appearance',icon:'◉',title:['見た目・動き','Appearance','外观与动画','外觀與動態'],subtitle:['文字、流れる速度、表示の重なり','Text, colors, movement and spacing','文字、颜色、速度与重叠','文字、色彩、速度與重疊'],keys:['fontSize','autoFontScale','fontFamily','outlineEnabled','outlineStrength','outlineOpacity','lineSpacing','speed','opacity','colorMode','color','speedMode','autoShrink','halfLineOverlap']},
  {id:'performance',icon:'⚡',title:['パフォーマンス','Performance','性能','效能'],subtitle:['描画エンジンとFPSの設定','Renderer and FPS settings','渲染引擎与帧率','繪製引擎與FPS'],keys:['rendererMode','fpsLimit']},
  {id:'translation',icon:'文',title:['翻訳','Translation','翻译','翻譯'],subtitle:['コメントの翻訳を有効化','Translate comments only when enabled','开启后翻译评论','啟用時翻譯留言'],keys:['translateComments','translateLanguage']}
 ];
@@ -33,9 +33,12 @@ const choices={
  speedMode:[['fixed','speedFixed'],['random','speedRandom']],
  translateLanguage:[['ja','日本語'],['en','English'],['zh-CN','简体中文'],['zh-TW','繁體中文'],['ko','한국어'],['es','Español'],['fr','Français'],['de','Deutsch']]
 };
-const ranges={fontSize:[14,38,1],outlineStrength:[.25,2.5,.25],lineSpacing:[.7,2,.05],speed:[.5,2,.1],density:[1,11,1],opacity:[.2,1,.05],hideFromLines:[0,10,1],featuredPercent:[0,30,1],featuredScrollFromLines:[0,10,1]};
+const ranges={fontSize:[14,38,1],outlineStrength:[.25,2.5,.25],outlineOpacity:[0,1,.01],lineSpacing:[.7,2,.05],speed:[.5,2,.1],density:[1,11,1],opacity:[.2,1,.05],hideFromLines:[0,10,1],featuredPercent:[0,30,1],featuredScrollFromLines:[0,10,1]};
 const descriptions={
- fontFamily:['OSに入っているフォントを使用します。表示は環境によって異なります。','Uses fonts installed on this device. Results depend on the platform.','使用设备已安装的字体，不同设备显示可能不同。','使用裝置已安裝的字體，不同裝置顯示可能不同。'],
+ autoFontScale:['プレイヤーの幅と高さに応じて文字を自動拡大縮小します。960×540で100%、全画面で最大250%。','Scale text with player width and height. 100% at 960×540; up to 250% fullscreen.','随播放器尺寸缩放文字。960×540为100%，最大250%。','依播放器尺寸縮放文字。960×540為100%，最大250%。'],
+ outlineOpacity:['縁取りだけの不透明度です。0%で透明、100%で不透明（初期値86%）。','Opacity of the outline only. 0% transparent, 100% opaque (default 86%).','仅描边的不透明度。0%全透明，100%不透明（默认86%）。','僅描邊的不透明度。0%全透明，100%不透明（預設86%）。'],
+
+ fontFamily:['PCにインストールされているフォントを読み込んで選択できます。初回は許可が必要です。','Uses fonts installed on this device. Results depend on the platform.','使用设备已安装的字体，不同设备显示可能不同。','使用裝置已安裝的字體，不同裝置顯示可能不同。'],
  outlineEnabled:['文字の黒い縁取りをオン・オフします。','Enable or disable black text outlines.','开启或关闭黑色文字描边。','開啟或關閉黑色文字描邊。'],
  outlineStrength:['100%が従来の太さです。無効時は描画しません。','100% matches the previous outline width; disabled outlines are not drawn.','100%是原来的描边宽度，关闭后不绘制。','100%是原來的描邊寬度，關閉後不繪製。'],
  lineSpacing:['100%は従来と同じ間隔です。改行したコメント・通常の行・下端の人気コメントに反映されます。','100% keeps the original spacing. Applies to multiline comments, scrolling lanes and bottom featured comments.','100%为原始行距，影响多行弹幕、普通行与底部热门弹幕。','100%為原始行距，影響多行彈幕、一般行與底部熱門彈幕。'],
@@ -50,6 +53,20 @@ const descriptions={
  fpsLimit:['自動では描画負荷に応じてFPSを調整します。','Auto adapts FPS to rendering cost.','自动根据渲染负载调整帧率。','自動根據繪製負載調整FPS。']
 };
 let activeGroup=groups[0].id,searchValue='',statusTimer;
+let localFontNames=[];
+async function loadLocalFontList(){
+ if(typeof window.queryLocalFonts!=='function') {notify(translate('localFontsUnsupported'),true);return;}
+ // queryLocalFonts is invoked synchronously from a direct button click;
+ // Chromium asks permission before exposing any locally installed font names.
+ let available;
+ try {available=await window.queryLocalFonts();}
+ catch(error){notify(error?.name==='NotAllowedError'?translate('localFontsDenied'):translate('localFontsFailed'),true);return;}
+ localFontNames=[...new Set(available.map(face=>face.family).filter(name=>typeof name==='string'&&name.trim()&&name.length<=128))]
+   .sort((a,b)=>a.localeCompare(b,locale(),{sensitivity:'base'}));
+ render();
+ notify(localFontNames.length?translate('localFontsFound').replace('{count}',String(localFontNames.length)):translate('localFontsEmpty'),!localFontNames.length);
+}
+
 const locale=()=>I18N.detect(values.language);
 const localeIndex=()=>({ja:0,en:1,'zh-CN':2,'zh-TW':3})[locale()]??0;
 const translate=key=>I18N.translate(locale(),key);
@@ -57,7 +74,7 @@ const L=key=>pageLabels[locale()][key];
 const $=id=>document.getElementById(id);
 function displayValue(key,value){
  if(key==='fontSize')return value+' px';
- if(key==='lineSpacing'||key==='outlineStrength')return Math.round(Number(value)*100)+'%';
+ if(key==='lineSpacing'||key==='outlineStrength'||key==='outlineOpacity')return Math.round(Number(value)*100)+'%';
  if(key==='speed')return Number(value).toFixed(1)+' ×';
  if(key==='opacity'||key==='featuredPercent')return Math.round(value*(key==='opacity'?100:1))+'%';
  if(key==='density')return Number(value)===11?translate('unlimited'):value+'/10';
@@ -81,9 +98,17 @@ function makeControl(key){
    input=document.createElement('input');input.type='color';holder.append(input);
  }else{
    input=document.createElement('select');
-   for(const [value,title] of choices[key]){const option=document.createElement('option');option.value=String(value);
+   const entries=key==='fontFamily'?([...choices.fontFamily,...localFontNames.map(name=>['local:'+name,name])]):choices[key];
+   if(key==='fontFamily' && String(values.fontFamily).startsWith('local:') && !entries.some(e=>e[0]===values.fontFamily))entries.push([values.fontFamily,values.fontFamily.slice(6)]);
+   for(const [value,title] of entries){const option=document.createElement('option');option.value=String(value);
      option.textContent=I18N.translate(locale(),title)||title;input.append(option);}
    holder.append(input);
+   if(key==='fontFamily') {
+     holder.classList.add('font-picker');
+     const button=document.createElement('button');button.type='button';button.className='load-local-fonts';button.textContent=translate('loadLocalFonts');
+     button.addEventListener('click',()=>{void loadLocalFontList();});
+     holder.append(button);
+   }
  }
  input.id=key;input.dataset.setting=key;input.setAttribute('aria-label',translate(key));
  syncInput(input,key);
@@ -94,7 +119,7 @@ function makeControl(key){
    values[key]=value;syncInput(input,key);
    if(key==='language')render();
    if(key==='colorMode'&&$('color'))$('color').disabled=value==='random';
-   if(key==='outlineEnabled'&&$('outlineStrength'))$('outlineStrength').disabled=!value;
+   if(key==='outlineEnabled'){for(const name of ['outlineStrength','outlineOpacity'])if($(name))$(name).disabled=!value;}
    try{await chrome.storage.local.set({[key]:value});notify(L('saved'));}
    catch{notify(L('error'),true);}
  });
@@ -104,7 +129,7 @@ function syncInput(input,key){
  if(input.type==='checkbox')input.checked=!!values[key];else input.value=String(values[key]);
  const out=input.parentElement?.querySelector('output')||$(key+'Out');if(out)out.textContent=displayValue(key,values[key]);
  if(key==='color')input.disabled=values.colorMode==='random';
- if(key==='outlineStrength')input.disabled=!values.outlineEnabled;
+ if(key==='outlineStrength'||key==='outlineOpacity')input.disabled=!values.outlineEnabled;
 }
 function buildItem(key){
  const row=document.createElement('div');row.className='setting-item';row.dataset.label=translate(key).toLocaleLowerCase()+' '+describe(key).toLocaleLowerCase();
@@ -135,7 +160,7 @@ function render(){
  }
  if(!visibleCount){const empty=document.createElement('p');empty.className='no-results';empty.textContent=L('none');container.append(empty);}
  const color=$('color');if(color)color.disabled=values.colorMode==='random';
- const outline=$('outlineStrength');if(outline)outline.disabled=!values.outlineEnabled;
+ for(const key of ['outlineStrength','outlineOpacity'])if($(key))$(key).disabled=!values.outlineEnabled;
 }
 function renderNavActive(){for(const item of document.querySelectorAll('.nav-item'))item.classList.toggle('active',item.dataset.group===activeGroup);}
 $('settingsSearch').addEventListener('input',e=>{searchValue=e.target.value.trim().toLocaleLowerCase();render();});

@@ -36,8 +36,22 @@
     monospace:'ui-monospace, "Cascadia Mono", Consolas, "Noto Sans Mono CJK JP", monospace'
   });
   function fontCss(size,family='system') {
-    const stack=FONT_STACKS[family]||FONT_STACKS.system;
-    return `700 ${size}px ${stack}`;
+    let stack=FONT_STACKS[family];
+    if(!stack && typeof family==='string' && family.startsWith('local:')) {
+      const name=family.slice(6).trim();
+      // Escape as a *quoted CSS font-family*, never interpolate CSS syntax.
+      if(name && name.length<=128 && !/[\u0000-\u001f\u007f]/.test(name))
+        stack='"'+name.replace(/\\/g,'\\\\').replace(/"/g,'\\"')+'", system-ui, sans-serif';
+    }
+    return `700 ${size}px ${stack||FONT_STACKS.system}`;
+  }
+  // 960 x 540 (the previous nominal player size) is 100%. Height limits
+  // growth on ultrawide/letterboxed players; independent of devicePixelRatio.
+  function fontScaleForViewport(width,height,enabled=true) {
+    if(!enabled)return 1;
+    const w=Number(width),h=Number(height);
+    if(!(w>0&&h>0))return 1;
+    return Math.max(.65,Math.min(2.5,Math.min(w/960,h/540)));
   }
   function outlineWidthFor(size,enabled=true,strength=1){
     const ratio=Number.isFinite(strength)?Math.max(.25,Math.min(2.5,strength)):1;
@@ -458,7 +472,7 @@
   function trackX(track, videoTime, viewportWidth) {
     return viewportWidth + 10 - track.velocity * (videoTime - track.time);
   }
-  const api = Object.freeze({fontCss,outlineWidthFor,textHeightFor,trackFootprint,lineStepFor,normalizeText, cleanOriginalText, hideTimestamps, prepareText, lineCount, selectFeatured, shouldScrollFeatured, mergeStableTracks, parseTimes, lowerBound, hash, parseLikeCount, likeRank, newestRank, selectByLikes, selectForDisplay, commentColor, speedFactor, scrollTravelSeconds, timestampHeadLeadSeconds, buildSchedule, scrollingSpeed, safeFollowingStart, createTrack, planFeatured, planTracks, visibleTracks, paceFrame, trackX});
+  const api = Object.freeze({fontScaleForViewport,fontCss,outlineWidthFor,textHeightFor,trackFootprint,lineStepFor,normalizeText, cleanOriginalText, hideTimestamps, prepareText, lineCount, selectFeatured, shouldScrollFeatured, mergeStableTracks, parseTimes, lowerBound, hash, parseLikeCount, likeRank, newestRank, selectByLikes, selectForDisplay, commentColor, speedFactor, scrollTravelSeconds, timestampHeadLeadSeconds, buildSchedule, scrollingSpeed, safeFollowingStart, createTrack, planFeatured, planTracks, visibleTracks, paceFrame, trackX});
   globalThis.YDLLogic = api;
   if (typeof module === "object" && module.exports) module.exports = api;
 })();

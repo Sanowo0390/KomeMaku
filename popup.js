@@ -1,5 +1,5 @@
 'use strict';
-const DEFAULTS = {enabled:true,fontSize:24,fontFamily:'system',outlineEnabled:true,outlineStrength:1,lineSpacing:1,speed:1,density:5,opacity:.92,
+const DEFAULTS = {enabled:true,fontSize:24,fontFamily:'system',autoFontScale:true,outlineEnabled:true,outlineStrength:1,outlineOpacity:.86,lineSpacing:1,speed:1,density:5,opacity:.92,
   color:'#ffffff',colorMode:'single',speedMode:'fixed',language:'auto',selectionOrder:'popular',hideReplies:false,preserveLineBreaks:false,hideFromLines:0,featuredPercent:0,featuredScrollFromLines:0,
   translateComments:false,translateLanguage:'ja',autoShrink:true,halfLineOverlap:true,hideTimestamps:false,rendererMode:'auto',fpsLimit:0};
 const I18N=globalThis.YDLI18N;
@@ -12,7 +12,7 @@ function translateUi(){
   renderStatus(lastStatus);
 }
 function displayValue(key,value){
-  return key==='fontSize'?`${value}px`:(key==='lineSpacing'||key==='outlineStrength')?`${Math.round(Number(value)*100)}%`:key==='speed'?`${Number(value).toFixed(1)}×`:
+  return key==='fontSize'?`${value}px`:(key==='lineSpacing'||key==='outlineStrength'||key==='outlineOpacity')?`${Math.round(Number(value)*100)}%`:key==='speed'?`${Number(value).toFixed(1)}×`:
     key==='density'?(Number(value)===11?t('unlimited'):`${value}/10`):key==='opacity'?`${Math.round(Number(value)*100)}%`:
     key==='featuredPercent'?`${value}%`:(key==='hideFromLines'||key==='featuredScrollFromLines')?(Number(value)===0?t('unlimited'):`${value}${t('linesOrMore')}`):String(value);
 }
@@ -20,10 +20,15 @@ function updateInput(key){
   const input=document.getElementById(key);
   if(!input)return;
   if(input.type==='checkbox')input.checked=settings[key];
-  else input.value=settings[key];
+  else {
+    if(key==='fontFamily' && String(settings[key]).startsWith('local:') && !Array.from(input.options).some(o=>o.value===settings[key])){
+      const option=document.createElement('option');option.value=settings[key];option.textContent=settings[key].slice(6);input.append(option);
+    }
+    input.value=settings[key];
+  }
   if(input.type==='range')document.getElementById(`${key}Out`).textContent=displayValue(key,settings[key]);
   if(key==='colorMode')document.getElementById('color').disabled=settings.colorMode==='random';
-  if(key==='outlineEnabled')document.getElementById('outlineStrength').disabled=!settings.outlineEnabled;
+  if(key==='outlineEnabled')for(const id of ['outlineStrength','outlineOpacity'])document.getElementById(id).disabled=!settings.outlineEnabled;
 }
 function renderStatus(status){
   const el=document.getElementById('statusText');

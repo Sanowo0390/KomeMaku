@@ -15,7 +15,7 @@
       this.glyphs=new Map();
       this.layouts=new Map();
       this.advances=new Map();
-      this.fontCss=(size,family='system')=>{const stacks={system:'system-ui, sans-serif',gothic:'"Noto Sans JP", "Yu Gothic", "Hiragino Kaku Gothic ProN", Arial, sans-serif',mincho:'"Noto Serif JP", "Yu Mincho", "Hiragino Mincho ProN", Georgia, serif',rounded:'"Hiragino Maru Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif',monospace:'ui-monospace, "Cascadia Mono", Consolas, "Noto Sans Mono CJK JP", monospace'};return `700 ${size}px ${stacks[family]||stacks.system}`;};
+      this.fontCss=(size,family='system')=>{if(globalThis.YDLLogic?.fontCss)return globalThis.YDLLogic.fontCss(size,family);const stacks={system:'system-ui, sans-serif',gothic:'"Noto Sans JP", "Yu Gothic", "Hiragino Kaku Gothic ProN", Arial, sans-serif',mincho:'"Noto Serif JP", "Yu Mincho", "Hiragino Mincho ProN", Georgia, serif',rounded:'"Hiragino Maru Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif',monospace:'ui-monospace, "Cascadia Mono", Consolas, "Noto Sans Mono CJK JP", monospace'};const local=typeof family==='string'&&family.startsWith('local:')?family.slice(6).trim():'';const quoted=local&&local.length<=128&&!/[\u0000-\u001f\u007f]/.test(local)?'"'+local.replace(/\\/g,'\\\\').replace(/"/g,'\\"')+'", system-ui, sans-serif':null;return `700 ${size}px ${quoted||stacks[family]||stacks.system}`;};
       const measureCanvas=typeof OffscreenCanvas==='function'?new OffscreenCanvas(2,2):document.createElement('canvas');
       this.measureCtx=measureCanvas.getContext('2d',{alpha:true});
       this.missingGlyphs=0;
@@ -102,8 +102,8 @@
       for(const [key,g] of this.glyphs)if(g.page===oldest)this.glyphs.delete(key);
       return this._allocate(w,h);
     }
-    _glyph(text,size,fontFamily='system',outlineEnabled=true,outlineStrength=1) {
-      const key=fontFamily+'\0'+size+'\0'+outlineEnabled+'\0'+outlineStrength+'\0'+text,old=this.glyphs.get(key);
+    _glyph(text,size,fontFamily='system',outlineEnabled=true,outlineStrength=1,outlineOpacity=.86) {
+      const key=fontFamily+'\0'+size+'\0'+outlineEnabled+'\0'+outlineStrength+'\0'+outlineOpacity+'\0'+text,old=this.glyphs.get(key);
       if(old){this.textures[old.page].stamp=++this.frame;this.frameTouched.add(old.page);return old;}
       const scale=this.pixelRatio;
       const surface=typeof OffscreenCanvas==='function'?new OffscreenCanvas(2,2):document.createElement('canvas');
@@ -118,7 +118,7 @@
       surface.width=w;surface.height=h;
       ctx.font=this.fontCss(size*scale,fontFamily);
       ctx.lineJoin='round';ctx.lineWidth=outline;
-      ctx.strokeStyle='rgba(0,0,0,.86)';ctx.fillStyle='#ffffff';
+      ctx.strokeStyle=`rgba(0,0,0,${outlineOpacity})`;ctx.fillStyle='#ffffff';
       ctx.textBaseline='middle';
       if(outlineEnabled)ctx.strokeText(text,pad,h/2);ctx.fillText(text,pad,h/2);
       const place=this._allocate(w,h);
@@ -172,7 +172,7 @@
     clear(){const gl=this.gl;gl.viewport(0,0,this.canvas.width,this.canvas.height);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);}
     begin(opacity=1){this.clear();this.used=0;this.missingGlyphs=0;this.frameTouched.clear();this.groups=this.textures.map(()=>[]);this.alpha=opacity;this.frame++;}
     drawText(text,x,y,size,color,centered=false,lineSpacing=1,style={}){
-      const fontFamily=style.fontFamily||'system',outlineEnabled=style.outlineEnabled!==false,outlineStrength=Number.isFinite(style.outlineStrength)?style.outlineStrength:1;
+      const fontFamily=style.fontFamily||'system',outlineEnabled=style.outlineEnabled!==false,outlineStrength=Number.isFinite(style.outlineStrength)?style.outlineStrength:1,outlineOpacity=Number.isFinite(style.outlineOpacity)?Math.max(0,Math.min(1,style.outlineOpacity)):.86;
       const layout=this._layout(text,size,centered,fontFamily);
       const baseStep=Math.ceil(size*1.22+4),step=Math.max(1,Math.ceil(baseStep*(Number.isFinite(lineSpacing)?Math.max(.7,Math.min(2,lineSpacing)):1))),drawWidth=layout.width;
       const rgb=[1,1,1];
@@ -181,7 +181,7 @@
         const line=layout.rows[row];
         const origin=x+(centered?(drawWidth-line.width)/2:0);
         for(const entry of line.items){
-          const g=this._glyph(entry.char,size,fontFamily,outlineEnabled,outlineStrength);
+          const g=this._glyph(entry.char,size,fontFamily,outlineEnabled,outlineStrength,outlineOpacity);
           if(!g){this.missingGlyphs++;continue;}
           const px=origin+entry.x-g.pad/g.scale;
           const py=y+row*step+(baseStep-g.h/g.scale)/2;

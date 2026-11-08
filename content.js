@@ -3,11 +3,11 @@
   if (window.__YDL_CONTENT_INSTALLED__) return;
   window.__YDL_CONTENT_INSTALLED__ = true;
 
-  const {fontCss,outlineWidthFor,textHeightFor,lineStepFor, normalizeText, cleanOriginalText, hideTimestamps, prepareText, parseLikeCount, buildSchedule, lowerBound, scrollTravelSeconds, timestampHeadLeadSeconds, createTrack, planFeatured, planTracks, mergeStableTracks, selectFeatured, shouldScrollFeatured, visibleTracks, paceFrame, trackX, commentColor, speedFactor} = globalThis.YDLLogic;
+  const {fontScaleForViewport,fontCss,outlineWidthFor,textHeightFor,lineStepFor, normalizeText, cleanOriginalText, hideTimestamps, prepareText, parseLikeCount, buildSchedule, lowerBound, scrollTravelSeconds, timestampHeadLeadSeconds, createTrack, planFeatured, planTracks, mergeStableTracks, selectFeatured, shouldScrollFeatured, visibleTracks, paceFrame, trackX, commentColor, speedFactor} = globalThis.YDLLogic;
   const I18N = globalThis.YDLI18N;
   const parsePublishedAt = globalThis.YDLYcsParser?.parsePublishedAt || (()=>null);
   const t = (key,...args) => I18N.translate(I18N.detect(settings.language),key,...args);
-  const DEFAULTS = Object.freeze({enabled:true,fontSize:24,fontFamily:'system',outlineEnabled:true,outlineStrength:1,lineSpacing:1,opacity:0.92,speed:1,density:5,
+  const DEFAULTS = Object.freeze({enabled:true,fontSize:24,fontFamily:'system',autoFontScale:true,outlineEnabled:true,outlineStrength:1,outlineOpacity:.86,lineSpacing:1,opacity:0.92,speed:1,density:5,
     color:'#ffffff',colorMode:'single',speedMode:'fixed',language:'auto',selectionOrder:'popular',
     hideReplies:false,preserveLineBreaks:false,hideFromLines:0,featuredPercent:0,featuredScrollFromLines:0,
     translateComments:false,translateLanguage:'ja',autoShrink:true,halfLineOverlap:true,hideTimestamps:false,rendererMode:'auto',fpsLimit:0});
@@ -315,7 +315,7 @@
   }
   function spriteFor(text,fontPx,color,centered=false) {
     if(typeof ctx?.drawImage !== 'function') return null;
-    const key=`${fontPx}\0${settings.lineSpacing}\0${settings.fontFamily}\0${settings.outlineEnabled}\0${settings.outlineStrength}\0${color}\0${centered?"center":"left"}\0${text}`;
+    const key=`${fontPx}\0${settings.lineSpacing}\0${settings.fontFamily}\0${settings.outlineEnabled}\0${settings.outlineStrength}\0${settings.outlineOpacity}\0${color}\0${centered?"center":"left"}\0${text}`;
     let cached=spriteCache.get(key);
     if (cached) {spriteCache.delete(key);spriteCache.set(key,cached);return cached;}
     const lines=String(text).split('\n');
@@ -333,7 +333,7 @@
     if(!ink)return null;
     ink.font=fontCss(fontPx,settings.fontFamily);
     ink.textBaseline='middle';ink.textAlign=centered?'center':'left';ink.lineJoin='round';
-    ink.lineWidth=outlineWidthFor(fontPx,settings.outlineEnabled,settings.outlineStrength);ink.strokeStyle='rgba(0,0,0,.86)';ink.fillStyle=color;
+    ink.lineWidth=outlineWidthFor(fontPx,settings.outlineEnabled,settings.outlineStrength);ink.strokeStyle=`rgba(0,0,0,${settings.outlineOpacity})`;ink.fillStyle=color;
     lines.forEach((line,i)=>{
       const y=pad+lineHeight*i+baseLineHeight*.5;
       const px=centered?width/2:pad;if(settings.outlineEnabled)ink.strokeText(line,px,y);ink.fillText(line,px,y);
@@ -576,7 +576,7 @@
 
   function metrics() {
     const w = stage?.clientWidth || 0, h = stage?.clientHeight || 0;
-    const fontsize = Math.max(14, Math.round(settings.fontSize * Math.max(.65, Math.min(1.3, w / 960))));
+    const fontsize = Math.max(12, Math.round(settings.fontSize * fontScaleForViewport(w,h,settings.autoFontScale)));
     const lineHeight = Math.ceil((fontsize + 11)*settings.lineSpacing);
     // Normal lanes are even indices, and odd indices are only used as
     // a crowded-screen Niconico-style half-row fallback.
@@ -631,13 +631,13 @@
     // than reserving a large (13%) unused margin below Niconico-style text.
     const y=isCenter?Math.max(0,m.h-2-(item.bottomOffset||0)-h+(baseLineHeight-size)/2)
       :8+(item.offset||0)*m.laneStep+item.lane*m.laneStep;
-    if(webgl){webgl.drawText(item.text,x,y,size,color,isCenter,settings.lineSpacing,{fontFamily:settings.fontFamily,outlineEnabled:settings.outlineEnabled,outlineStrength:settings.outlineStrength});return;}
+    if(webgl){webgl.drawText(item.text,x,y,size,color,isCenter,settings.lineSpacing,{fontFamily:settings.fontFamily,outlineEnabled:settings.outlineEnabled,outlineStrength:settings.outlineStrength,outlineOpacity:settings.outlineOpacity});return;}
     const sprite=spriteFor(item.text,size,color,isCenter);
     if(sprite) {
       ctx.drawImage(sprite.surface,Math.round(x-sprite.pad),Math.round(y-sprite.pad));
     } else {
       ctx.font=fontCss(size,settings.fontFamily);
-      ctx.textBaseline='middle';ctx.textAlign=isCenter?'center':'left';ctx.strokeStyle='rgba(0,0,0,.86)';
+      ctx.textBaseline='middle';ctx.textAlign=isCenter?'center':'left';ctx.strokeStyle=`rgba(0,0,0,${settings.outlineOpacity})`;
       ctx.lineWidth=outlineWidthFor(size,settings.outlineEnabled,settings.outlineStrength);ctx.fillStyle=color;
       String(item.text).split('\n').forEach((line,i)=>{
         const yy=y+lineHeight*i+baseLineHeight*.5;
@@ -712,7 +712,7 @@
   // A native-looking control inside the YouTube player, with an absolute
   // settings popover. Nothing is inserted into the page's flow/layout.
   const fields = [
-    ['enabled','checkbox'], ['fontSize','range',14,38,1], ['fontFamily','select',['system','gothic','mincho','rounded','monospace']], ['outlineEnabled','checkbox'], ['outlineStrength','range',0.25,2.5,0.25], ['lineSpacing','range',0.7,2,0.05], ['speed','range',0.5,2,0.1],
+    ['enabled','checkbox'], ['fontSize','range',14,38,1], ['fontFamily','select',['system','gothic','mincho','rounded','monospace']], ['autoFontScale','checkbox'], ['outlineEnabled','checkbox'], ['outlineStrength','range',0.25,2.5,0.25], ['outlineOpacity','range',0,1,0.01], ['lineSpacing','range',0.7,2,0.05], ['speed','range',0.5,2,0.1],
     ['density','range',1,11,1], ['opacity','range',0.2,1,0.05],
     ['rendererMode','select',['auto','webgl2','canvas']],
     ['fpsLimit','select',['0','15','24','30','45','60','120']],
@@ -733,7 +733,7 @@
   }
   function formatValue(key,value) {
     if (key === 'fontSize') return `${value}px`;
-    if (key === 'lineSpacing' || key === 'outlineStrength') return `${Math.round(value*100)}%`;
+    if (key === 'lineSpacing' || key === 'outlineStrength' || key === 'outlineOpacity') return `${Math.round(value*100)}%`;
     if (key === 'speed') return `${Number(value).toFixed(1)}×`;
     if (key === 'density') return Number(value)===11?t('unlimited'):`${value}/10`;
     if (key === 'opacity') return `${Math.round(Number(value)*100)}%`;
@@ -742,7 +742,7 @@
     return String(value);
   }
   function chooseLabel(key,value) {
-    if (key === 'fontFamily') return t('font'+value[0].toUpperCase()+value.slice(1));
+    if (key === 'fontFamily') return value.startsWith('local:')?value.slice(6):t('font'+value[0].toUpperCase()+value.slice(1));
     if (key === 'selectionOrder') return t(value==='newest'?'selectionNewest':'selectionPopular');
     if (key === 'rendererMode') return value==='auto'?t('rendererAuto'):value==='webgl2'?'WebGL2':'Canvas 2D';
     if (key === 'fpsLimit') return Number(value)===0?t('auto'):`${value} FPS`;
@@ -839,7 +839,13 @@
       label.textContent=t(key);
       if(type==='checkbox') input.checked=settings[key];
       else input.value=settings[key];
-      if(type==='select') Array.from(input.options).forEach(o=>o.textContent=chooseLabel(key,o.value));
+      if(type==='select') {
+        if(key==='fontFamily' && String(settings.fontFamily).startsWith('local:') &&
+           !Array.from(input.options).some(o=>o.value===settings.fontFamily)) {
+          const option=document.createElement('option');option.value=settings.fontFamily;input.appendChild(option);
+        }
+        Array.from(input.options).forEach(o=>o.textContent=chooseLabel(key,o.value));
+      }
       const output=playerPanel.querySelector(`[data-ydl-output="${key}"]`);
       if(output) output.textContent=formatValue(key,settings[key]);
     }
@@ -933,12 +939,12 @@
     if (!settings.enabled) liveTracks = [];
     if(changes.rendererMode){glDisabledForSession=false;switchRenderer();}
     if(changes.fpsLimit)nextPaintAt=0;
-    if (changes.fontSize) resize();
-    if (changes.fontSize || changes.fontFamily || changes.outlineEnabled || changes.outlineStrength || changes.lineSpacing || changes.preserveLineBreaks || changes.translateComments || changes.translateLanguage || changes.autoShrink || changes.hideTimestamps ||
+    if (changes.fontSize || changes.autoFontScale) resize();
+    if (changes.fontSize || changes.fontFamily || changes.outlineEnabled || changes.outlineStrength || changes.outlineOpacity || changes.lineSpacing || changes.preserveLineBreaks || changes.translateComments || changes.translateLanguage || changes.autoShrink || changes.hideTimestamps ||
         (!webgl && (changes.color || changes.colorMode))) clearSprites();
     if(changes.translateLanguage || changes.translateComments) resetTranslationSession();
     if (changes.fontSize || changes.fontFamily || changes.preserveLineBreaks || changes.hideTimestamps) textWidths.clear();
-    if ((changes.selectionOrder || changes.density || changes.fontSize || changes.fontFamily || changes.outlineEnabled || changes.outlineStrength || changes.lineSpacing || changes.speed || changes.speedMode || changes.hideReplies || changes.preserveLineBreaks || changes.hideFromLines || changes.featuredPercent || changes.featuredScrollFromLines || changes.translateComments || changes.translateLanguage || changes.autoShrink || changes.halfLineOverlap || changes.hideTimestamps) && records.length) queueRebuild(true);
+    if ((changes.selectionOrder || changes.density || changes.fontSize || changes.autoFontScale || changes.fontFamily || changes.outlineEnabled || changes.outlineStrength || changes.outlineOpacity || changes.lineSpacing || changes.speed || changes.speedMode || changes.hideReplies || changes.preserveLineBreaks || changes.hideFromLines || changes.featuredPercent || changes.featuredScrollFromLines || changes.translateComments || changes.translateLanguage || changes.autoShrink || changes.halfLineOverlap || changes.hideTimestamps) && records.length) queueRebuild(true);
     invalidated=true;
     updatePlayerControls();
     if (settings.enabled) {
