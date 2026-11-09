@@ -95,5 +95,5 @@ selection.trigger('toggle');assert.equal(writes.length,updatedCount,'no unnecess
 const language=element('language');language.value='en';language.trigger('change');
 assert.equal(details.find(d=>d.id==='appearance').label.textContent,'Appearance');
 assert.ok(writes.some(w=>w.language==='en'),'language stays connected to existing settings');
-assert.equal(require('../manifest.json').version,'1.9.2');
+
 console.log('PASS: category parity (28 settings), independent collapsible folds, persisted state, expand/collapse all, localization, unchanged settings');

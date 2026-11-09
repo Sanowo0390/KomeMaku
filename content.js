@@ -515,6 +515,18 @@
     ensurePlayerControls();
   }
 
+  // Both a failed WebGL initialization and an explicit engine change require
+  // a fresh canvas: browsers cannot switch a used WebGL canvas into 2D mode.
+  function replaceRendererCanvas(){
+    const old=canvas, replacement=document.createElement('canvas');
+    replacement.id=old.id;
+    if(old.style.cssText)replacement.style.cssText=old.style.cssText;
+    else Object.assign(replacement.style,old.style);
+    old.remove();
+    stage.appendChild(replacement);
+    canvas=replacement;
+  }
+
   function setupRenderer(){
     if(!canvas)return;
     rendererName='canvas';webgl=null;
@@ -526,9 +538,7 @@
       }catch(error){
         console.warn('[KomeMaku] Canvas 2D fallback:',error?.message||error);
         // A WebGL context that failed after allocation cannot be reused as 2D.
-        const old=canvas;canvas=document.createElement('canvas');canvas.id=old.id;
-        if(old.style.cssText)canvas.style.cssText=old.style.cssText;
-        else Object.assign(canvas.style,old.style);old.remove();stage.appendChild(canvas);
+        replaceRendererCanvas();
       }
     }
     if(webgl){
@@ -542,12 +552,8 @@
   }
   function switchRenderer(){
     if(!stage||!canvas)return;
-    const old=canvas;
     if(webgl){webgl.destroy();webgl=null;}
-    canvas=document.createElement('canvas');canvas.id=old.id;
-    if(old.style.cssText)canvas.style.cssText=old.style.cssText;
-    else Object.assign(canvas.style,old.style);
-    old.remove();stage.appendChild(canvas);
+    replaceRendererCanvas();
     setupRenderer();resize();queueRebuild(true);
   }
   function resize() {
