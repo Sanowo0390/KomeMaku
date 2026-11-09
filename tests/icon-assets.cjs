@@ -27,7 +27,8 @@ for(const name of ['icon.svg','icon-small.svg']){
 const largeSvg=fs.readFileSync(path.join(root,'icons/icon.svg'),'utf8');
 const smallSvg=fs.readFileSync(path.join(root,'icons/icon-small.svg'),'utf8');
 for(const artwork of [largeSvg,smallSvg]){
-  assert.doesNotMatch(artwork, /sprout|leaf|双葉|M93 91C84/i, 'No twin-leaf motif');
+  const shapeMarkup=artwork.replace(/<!--[\s\S]*?-->/g,'');
+  assert.doesNotMatch(shapeMarkup, /sprout|leaf|双葉|M93 91C84/i, 'No twin-leaf motif');
   assert.match(artwork, /<circle cx=/, 'Larger dotted speech bubble');
   assert.match(artwork, /stroke="#f8fffd"/, 'Large video frame');
   assert.match(artwork, /#80ffdc/, 'Keep current mint border');
