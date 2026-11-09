@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const root=path.resolve(__dirname,'..');
 const manifest=require('../manifest.json');
-assert.equal(manifest.version,'1.9.1');
+assert.equal(manifest.version,'1.9.2');
 assert.equal(manifest.manifest_version,3);
 const signature=Buffer.from([137,80,78,71,13,10,26,10]);
 for(const px of [16,32,48,128]){
@@ -23,7 +23,7 @@ for(const name of ['icon.svg','icon-small.svg']){
   assert.match(xml,/<svg\b/);
   assert.match(xml,/viewBox="0 0 128 128"/);
 }
-// Guard the requested v1.9.1 visual identity.
+// Guard the approved v1.9.2 streaming-comment visual identity.
 const largeSvg=fs.readFileSync(path.join(root,'icons/icon.svg'),'utf8');
 const smallSvg=fs.readFileSync(path.join(root,'icons/icon-small.svg'),'utf8');
 for(const artwork of [largeSvg,smallSvg]){
@@ -32,7 +32,14 @@ for(const artwork of [largeSvg,smallSvg]){
   assert.match(artwork, /stroke="#f8fffd"/, 'Large video frame');
   assert.match(artwork, /#80ffdc/, 'Keep current mint border');
 }
-assert.match(largeSvg, /Three short text trails/, 'Flowing comment streaks are present');
+assert.match(largeSvg, /Visible lines of streaming comments/, 'Foreground text streaks are present');
+assert.match(largeSvg, /Outer comments are translucent/, 'Out-of-frame streaks are translucent');
+assert.match(largeSvg, /opacity="\.43"/, 'Outside streaks have reduced opacity');
+assert.match(largeSvg, /id="textTrail" gradientUnits="userSpaceOnUse"/, 'Horizontal gradient survives PNG rasterization');
+assert.match(largeSvg, /Elliptical mint orbit restored/, 'Oval motion trail is retained');
+assert.match(largeSvg, /Legible play mark, slightly larger/, 'Play symbol is larger than v1.9.1');
+assert.ok((largeSvg.match(/<path d="M\d+ \d+H\d+" stroke-width=/g)||[]).length>=9, 'Many flowing comment streaks');
+assert.match(smallSvg, /gradientUnits="userSpaceOnUse"/, 'Small icon gradient survives rasterization');
 assert.match(smallSvg, /simplified for 16px/, 'Readable small toolbar icon');
 
 assert.notDeepEqual(

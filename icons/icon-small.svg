@@ -1,15 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="KomeMaku - small flowing video comments">
   <defs>
-    <linearGradient id="border" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#80ffdc"/><stop offset="1" stop-color="#00dcab"/></linearGradient>
-    <linearGradient id="dark" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#15505a"/><stop offset="1" stop-color="#062e38"/></linearGradient>
+    <linearGradient id="border" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#80ffdc"/><stop offset="1" stop-color="#00dcab"/></linearGradient>
+    <linearGradient id="dark" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#15505a"/><stop offset="1" stop-color="#062e38"/></linearGradient>
+    <linearGradient id="flow" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#a5ffeb"/><stop offset="1" stop-color="#00dcab"/></linearGradient>
+    <linearGradient id="trail" gradientUnits="userSpaceOnUse" x1="12" y1="0" x2="107" y2="0"><stop stop-color="#f8fffd"/><stop offset="1" stop-color="#36efc5"/></linearGradient>
   </defs>
+  <!-- Simplified for 16px: fewer strokes, same silhouette. -->
   <rect x="1" y="1" width="126" height="126" rx="30" fill="url(#border)"/>
   <rect x="10" y="10" width="108" height="108" rx="24" fill="url(#dark)"/>
-  <!-- Larger video frame; simplified for 16px. -->
-  <path d="M65 45H44Q28 45 28 61V82Q28 99 45 99H87Q104 99 104 83V65" fill="none" stroke="#f8fffd" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M53 58L72 69L53 80Z" fill="#f8fffd"/>
+  <g fill="none" stroke="url(#trail)" stroke-linecap="round" opacity=".42">
+    <path d="M18 35H40" stroke-width="5"/><path d="M76 107H101" stroke-width="5"/>
+  </g>
+  <path d="M65 47H44Q28 47 28 63V82Q28 99 45 99H87Q103 99 103 83V65" fill="none" stroke="#f8fffd" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="none" stroke="url(#trail)" stroke-width="5" stroke-linecap="round"><path d="M36 61H51"/><path d="M74 86H94"/></g>
+  <path d="M51 57L78 71L51 85Z" fill="#f8fffd"/>
   <path d="M82 22H96Q115 22 115 40Q115 57 96 57H85L70 67L75 53Q66 48 66 40Q66 22 82 22Z" fill="#fbfffe"/>
   <circle cx="83" cy="40" r="3.4" fill="#03323b"/><circle cx="95" cy="40" r="3.4" fill="#03323b"/><circle cx="107" cy="40" r="3.4" fill="#03323b"/>
-  <path d="M17 35H41" stroke="#80ffdc" stroke-width="6" stroke-linecap="round"/>
-  <path d="M48 88H74" stroke="#80ffdc" stroke-width="5" stroke-linecap="round"/>
+  <path d="M30 91Q17 96 25 103Q58 117 104 88Q115 81 104 76" fill="none" stroke="url(#flow)" stroke-width="6" stroke-linecap="round"/>
 </svg>

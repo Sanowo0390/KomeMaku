@@ -70,5 +70,5 @@ const I18N=require('../i18n.js');
 for(const lang of ['ja','en','zh-CN','zh-TW'])for(const key of
   ['outlineOpacity','autoFontScale','loadLocalFonts','localFontsDenied','localFontsUnsupported'])
   assert.notEqual(I18N.translate(lang,key),key,lang+' missing '+key);
-assert.equal(require('../manifest.json').version,'1.9.1');
+assert.equal(require('../manifest.json').version,'1.9.2');
 console.log('PASS: installed font family escapes, explicit permission UI, outline-opacity GPU cache, 2D viewport scale, UI consistency');
