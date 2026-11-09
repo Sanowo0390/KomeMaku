@@ -41,7 +41,7 @@ assert.match(largeSvg, /Elliptical mint orbit restored/, 'Oval motion trail is r
 assert.match(largeSvg, /Legible play mark, slightly larger/, 'Play symbol is larger than v1.9.1');
 assert.ok((largeSvg.match(/<path d="M\d+ \d+H\d+" stroke-width=/g)||[]).length>=9, 'Many flowing comment streaks');
 assert.match(smallSvg, /gradientUnits="userSpaceOnUse"/, 'Small icon gradient survives rasterization');
-assert.match(smallSvg, /simplified for 16px/, 'Readable small toolbar icon');
+assert.ok((smallSvg.match(/<path d=/g)||[]).length>=6, 'Small toolbar icon retains all key shapes');
 
 assert.notDeepEqual(
  fs.readFileSync(path.join(root,'icons/icon16.png')),
